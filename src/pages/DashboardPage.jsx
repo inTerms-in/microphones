@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, PieChart, Pie, Cell
+  ResponsiveContainer, PieChart, Pie, Cell,
+  BarChart, Bar, Legend
 } from 'recharts';
 
 const MetricCard = React.memo(({ title, value, unit = "₹", icon: Icon, color, isCurrency = true }) => (
@@ -29,7 +30,7 @@ const DashboardPage = () => {
   const { user, profile } = useAuth();
   const [rawData, setRawData] = useState({ branches: [], entries: [] });
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [filter, setFilter] = useState('today');
+  const [filter, setFilter] = useState('week'); // Default to week
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
@@ -75,6 +76,8 @@ const DashboardPage = () => {
       const d = new Date(); d.setMonth(d.getMonth() - 1); startDate = d.toISOString().split('T')[0];
     } else if (filter === 'year') {
       const d = new Date(); d.setFullYear(d.getFullYear() - 1); startDate = d.toISOString().split('T')[0];
+    } else if (filter === 'today') {
+      startDate = today;
     }
 
     const endDate = (filter === 'custom' && customEnd) ? customEnd : today;
@@ -104,18 +107,65 @@ const DashboardPage = () => {
     });
     const ranked = Object.values(branchAgg).sort((a, b) => b.sales - a.sales);
 
-    const trendMap = {};
-    entries.filter(e => e.entry_date >= startDate && e.entry_date <= endDate).forEach(e => {
-      if (!trendMap[e.entry_date]) trendMap[e.entry_date] = 0;
-      trendMap[e.entry_date] += e.total_sales;
-    });
-    const trendData = Object.entries(trendMap).map(([date, sales]) => ({
-      name: new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }), sales
-    })).slice(-10);
+    // Dynamic Bar Chart Binning Logic
+    let barData = [];
+    if (filter === 'today' || filter === 'custom') {
+      // Comparison by branch
+      barData = Object.values(branchAgg).map(b => ({
+        name: b.name,
+        Sales: b.sales,
+        Service: b.service
+      }));
+    } else if (filter === 'week') {
+      // Last 7 days
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        days.push({ 
+          date: d.toISOString().split('T')[0], 
+          label: d.toLocaleDateString('en-US', { weekday: 'short' }) 
+        });
+      }
+      barData = days.map(d => {
+        const dayEntries = rangeEntries.filter(e => e.entry_date === d.date);
+        return {
+          name: d.label,
+          Sales: dayEntries.reduce((s, e) => s + e.total_sales, 0),
+          Service: dayEntries.reduce((s, e) => s + e.service_amount, 0),
+        };
+      });
+    } else if (filter === 'month') {
+      // Current Month Days
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      for (let i = 1; i <= daysInMonth; i++) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        const dayEntries = rangeEntries.filter(e => e.entry_date === dateStr);
+        barData.push({
+          name: String(i),
+          Sales: dayEntries.reduce((s, e) => s + e.total_sales, 0),
+          Service: dayEntries.reduce((s, e) => s + e.service_amount, 0),
+        });
+      }
+    } else if (filter === 'year') {
+      // Monthly for last year
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentYear = new Date().getFullYear();
+      barData = months.map((m, idx) => {
+        const monthPrefix = `${currentYear}-${String(idx + 1).padStart(2, '0')}`;
+        const monthEntries = entries.filter(e => e.entry_date.startsWith(monthPrefix));
+        return {
+          name: m,
+          Sales: monthEntries.reduce((s, e) => s + e.total_sales, 0),
+          Service: monthEntries.reduce((s, e) => s + e.service_amount, 0),
+        };
+      });
+    }
 
     const pieData = [
       { name: 'Product', value: totals.sales - totals.service, fill: '#00d2ff' },
-      { name: 'Service', value: totals.service, fill: '#00c853' }
+      { name: 'Service', value: totals.service, fill: '#6366f1' } // Purple for Service
     ];
 
     const totalBranches = branches.length;
@@ -124,7 +174,7 @@ const DashboardPage = () => {
 
     return {
       stats: { totalSales: totals.sales, serviceRevenue: totals.service, smartphonesSold: totals.phones, simCardsSold: totals.sims, branchesSubmitted, totalBranches, submittedBranches: submitted, pendingBranches: pending, topBranch: ranked[0] || null },
-      charts: { salesTrend: trendData, serviceVsProduct: pieData, branchPerformance: ranked },
+      charts: { mainChart: barData, serviceVsProduct: pieData, branchPerformance: ranked },
       pct
     };
   }, [rawData, filter, customStart, customEnd]);
@@ -219,17 +269,37 @@ const DashboardPage = () => {
       {/* Charts */}
       <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: '1.75fr 1fr', gap: '0.75rem' }}>
         <div className="glass">
-          <h3 style={{ fontWeight: 800, marginBottom: '1rem', fontSize: '0.9rem' }}>Sales Trend</h3>
-          <div style={{ height: '220px', width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ fontWeight: 800, fontSize: '0.9rem' }}>Revenue Performance</h3>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600, padding: '2px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>Sales vs Service</span>
+          </div>
+          <div style={{ height: '240px', width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={charts.salesTrend}>
-                <defs><linearGradient id="cS" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#00d2ff" stopOpacity={0.2}/><stop offset="95%" stopColor="#00d2ff" stopOpacity={0}/></linearGradient></defs>
+              <BarChart data={charts.mainChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={10} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', background: '#1a1a1a', color: 'white', fontSize: '0.75rem' }} />
-                <Area type="monotone" dataKey="sales" stroke="#00d2ff" strokeWidth={2} fillOpacity={1} fill="url(#cS)" />
-              </AreaChart>
+                <XAxis 
+                  dataKey="name" 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: 'var(--text-secondary)' }}
+                />
+                <YAxis 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  axisLine={false} 
+                  tickLine={false}
+                  tickFormatter={(value) => `₹${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', background: '#1a1a1a', color: 'white', fontSize: '0.75rem', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)' }} 
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '0.7rem', paddingTop: '10px' }} />
+                <Bar dataKey="Sales" fill="#00d2ff" radius={[4, 4, 0, 0]} barSize={filter === 'month' ? 6 : 20} />
+                <Bar dataKey="Service" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={filter === 'month' ? 6 : 20} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
