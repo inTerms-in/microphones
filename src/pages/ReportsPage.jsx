@@ -129,33 +129,40 @@ const ReportsPage = () => {
           <span>${companyName} — Confidential Report</span>
           <span>Page 1 of 1</span>
         </div>
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => { if (!window.printInProgress) window.close(); }, 500);
+          };
+          window.onafterprint = () => window.close();
+        </script>
       </body></html>
     `;
 
-    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    const printWindow = window.open('', '_blank');
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    
-    // Auto-close handler
-    printWindow.onafterprint = () => printWindow.close();
-    
-    setTimeout(() => {
-      printWindow.print();
-      // Fallback for browsers where onafterprint might not trigger as expected
-      setTimeout(() => { 
-        if (!printWindow.closed) printWindow.close(); 
-      }, 500);
-    }, 500);
   };
 
   const exportCSV = () => {
     const headers = ['Date', 'Branch', 'Total Sales', 'Service', 'Phones', 'SIMs', 'Remarks'];
     const rows = entries.map(e => [e.entry_date, e.branches?.name, e.total_sales, e.service_amount, e.smartphone_count, e.sim_count, (e.remarks || '').replace(/,/g, ';')]);
-    const csvContent = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a'); link.href = url; link.download = `report_${Date.now()}.csv`; link.click();
+    const csvContent = "\uFEFF" + [headers, ...rows].map(r => r.join(',')).join('\n'); // Add BOM for Excel UTF-8
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const fileName = `Report_${filters.startDate}_to_${filters.endDate}.csv`;
+    
+    if (navigator.msSaveBlob) { // IE 10+
+      navigator.msSaveBlob(blob, fileName);
+    } else {
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (

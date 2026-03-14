@@ -170,7 +170,7 @@ const SettingsPage = () => {
       {/* Add User — Comprehensive Form */}
       <div className="glass" style={{ padding: '1.25rem', overflow: 'visible', zIndex: 10, position: 'relative' }}>
         <h3 style={{ fontSize: '0.9rem', fontWeight: 800, marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Add New User</h3>
-        <form onSubmit={handleCreateUser} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'nowrap', overflow: 'visible' }}>
+        <form onSubmit={handleCreateUser} className="add-user-form">
           <div className="form-group-standard" style={{ minWidth: '150px', flex: 1.5 }}>
             <label>Full Name</label>
             <input value={newUser.fullName} onChange={e => setNewUser({...newUser, fullName: e.target.value})} required style={{ width: '100%' }} />
@@ -233,7 +233,7 @@ const SettingsPage = () => {
       {/* Grid View Table */}
       <div className="glass" style={{ padding: 0, overflow: 'visible' }}>
         {/* Header Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2.5fr 70px 70px 80px', padding: '10px 16px', borderBottom: '1px solid var(--glass-border)', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div className="team-grid team-header-row">
            <div>Employee</div>
            <div>Type</div>
            <div>Branches</div>
@@ -247,7 +247,7 @@ const SettingsPage = () => {
           {filteredTeam.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No employees found</div>
           ) : filteredTeam.map(member => (
-            <div key={member.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2.5fr 70px 70px 80px', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center', transition: '0.15s' }}>
+            <div key={member.id} className="team-grid team-data-row">
               {/* Name + Email */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <div style={{ width: '28px', height: '28px', minWidth: '28px', borderRadius: '50%', background: 'var(--accent-gradient)', color: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.7rem' }}>
@@ -512,7 +512,7 @@ const CompanySettings = ({ company, setCompany }) => {
     alert('Business Profile Updated!');
   };
   return (
-    <div className="animate-fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1.5rem', maxWidth: '800px' }}>
+    <div className="animate-fade-in company-settings-grid">
       <div className="glass">
         <h2 style={{ fontSize: '1rem', marginBottom: '1.25rem' }}>Business Identity</h2>
         <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
