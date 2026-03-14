@@ -8,9 +8,17 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
 const Login = () => {
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
 
-  if (session) return <Navigate to="/" />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (session) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
@@ -21,7 +29,17 @@ const Login = () => {
         </div>
         <Auth
           supabaseClient={supabase}
-          appearance={{ theme: ThemeSupa }}
+          appearance={{ 
+            theme: ThemeSupa,
+            variables: {
+              default: {
+                colors: {
+                  brand: '#4f46e5',
+                  brandAccent: '#4338ca',
+                }
+              }
+            }
+          }}
           theme="light"
           providers={[]}
         />
