@@ -1,1 +1,177 @@
-"use client"; import React, { useState } from 'react'; import Layout from '@/components/Layout'; import { useAuth } from '@/context/AuthContext'; import { useQuery } from '@tanstack/react-query'; import { supabase } from '@/integrations/supabase/client'; import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; import { Button } from '@/components/ui/button'; import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; import { Download, Filter, Calendar } from 'lucide-react'; import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns'; const Reports = () => { const { profile } = useAuth(); const [filter, setFilter] = useState('monthly'); const [dateRange, setDateRange] = useState({ start: format(startOfMonth(new Date()), 'yyyy-MM-dd'), end: format(endOfMonth(new Date()), 'yyyy-MM-dd') }); const { data: reportData, isLoading } = useQuery({ queryKey: ['reports', filter, dateRange, profile?.company_id], queryFn: async () => { const { data, error } = await supabase .from('daily_entries') .select('*, branches(name, company_id)') .gte('entry_date', dateRange.start) .lte('entry_date', dateRange.end); if (error) throw error; // Group by branch const branchStats = data.reduce((acc: any, curr: any) => { const branchName = curr.branches.name; if (!acc[branchName]) { acc[branchName] = { sales: 0, service: 0, phones: 0, sims: 0, entries: 0 }; } acc[branchName].sales += Number(curr.total_sales); acc[branchStats].service += Number(curr.service_amount); acc[branchName].phones += curr.smartphone_count; acc[branchName].sims += curr.sim_count; acc[branchName].entries += 1; return acc; }, {}); return Object.entries(branchStats).map(([name, stats]: [string, any]) => ({ name, ...stats })); }, enabled: !!profile }); const handleFilterChange = (val: string) => { setFilter(val); const now = new Date(); if (val === 'monthly') { setDateRange({ start: format(startOfMonth(now), 'yyyy-MM-dd'), end: format(endOfMonth(now), 'yyyy-MM-dd') }); } else if (val === 'yearly') { setDateRange({ start: format(startOfYear(now), 'yyyy-MM-dd'), end: format(endOfYear(now), 'yyyy-MM-dd') }); } }; return ( <Layout> <div className="space-y-6"> <header className="flex justify-between items-center"> <h2 className="text-2xl font-bold">Reports</h2> <Button variant="outline" size="sm" className="rounded-xl gap-2"> <Download size={16} className="mr-1" /> Export </Button> </header> <Card className="border-none shadow-sm"> <CardHeader className="bg-slate-50 p-4"> <div className="flex items-center gap-2"> <Filter size={16} className="text-slate-400" /> <div> <h3 className="text-sm font-bold">Filter by:</h3> <div className="space-y-1"> <Select value={filter} onValueChange={handleFilterChange} className="w-full"> <SelectTrigger className="rounded-xl"> <SelectValue /> </SelectTrigger> <SelectContent> <SelectItem value="daily">Daily</SelectItem> <SelectItem value="weekly">Weekly</SelectItem> <SelectItem value="monthly">Monthly</SelectItem> <SelectItem value="yearly">Yearly</SelectItem> </SelectContent> </Select> </div> </div> </div> </CardHeader> <CardContent className="p-4"> <div className="space-y-3"> <div className="flex items-center gap-2"> <Calendar size={14} className="text-slate-400" /> <div> <h3 className="text-sm font-bold">Date Range</h3> <div className="space-y-1"> <Select value={dateRange.start} onValueChange={(val) => setDateRange({ ...dateRange, start: val })}> <SelectTrigger className="rounded-xl"> <SelectValue /> </SelectTrigger> <SelectContent> <SelectItem value={format(startOfMonth(new Date()), 'yyyy-MM-dd')}>Start of Month</SelectItem> <SelectItem value={format(startOfYear(new Date()), 'yyyy-MM-dd')}>Start of Year</SelectItem> </SelectContent> </Select> </div> <div className="space-y-1"> <Select value={dateRange.end} onValueChange={(val) => setDateRange({ ...dateRange, end: val })}> <SelectTrigger className="rounded-xl"> <SelectValue /> </SelectTrigger> <SelectContent> <SelectItem value={format(endOfMonth(new Date()), 'yyyy-MM-dd')}>End of Month</SelectItem> <SelectItem value={format(endOfYear(new Date()), 'yyyy-MM-dd')}>End of Year</SelectItem> </SelectContent> </Select> </div> </div> </div> </div> </CardContent> </Card> <div className="space-y-4"> {reportData?.map((branch: any) => ( <Card key={branch.name} className="border-none shadow-sm rounded-2xl overflow-hidden"> <div className="bg-indigo-600 px-4 py-2 text-white text-xs font-bold flex justify-between"> <span>{branch.name}</span> <span>{branch.entries} Entries</span> </div> <CardContent className="p-4 grid grid-cols-2 gap-4"> <div> <p className="text-[10px] text-slate-400 uppercase font-bold">Total Sales</p> <p className="text-lg font-bold text-slate-800">${branch.sales.toLocaleString()}</p> </div> <div> <p className="text-[10px] text-slate-400 uppercase font-bold">Service</p> <p className="text-lg font-bold text-indigo-600">${branch.service.toLocaleString()}</p> </div> <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg"> <Smartphone size={14} className="text-blue-500" /> <span className="text-xs font-bold">{$branch.phones} Phones</span> </div> <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg"> <CreditCard size={14} className="text-emerald-500" /> <span className="text-xs font-bold">{$branch.sims} SIMs</span> </div> </CardContent> </Card> ))} </div> </div> </Layout> ); }; export default Reports;
+"use client";
+
+import React, { useState } from 'react';
+import Layout from '@/components/Layout';
+import { useAuth } from '@/context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Download, Filter, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns';
+
+const Reports = () => {
+  const { profile } = useAuth();
+  const [filter, setFilter] = useState('monthly');
+  const [dateRange, setDateRange] = useState({
+    start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
+  });
+
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['reports', filter, dateRange, profile?.company_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('daily_entries')
+        .select('*, branches(name, company_id)')
+        .gte('entry_date', dateRange.start)
+        .lte('entry_date', dateRange.end);
+
+      if (error) throw error;
+
+      // Group by branch
+      const branchStats = data.reduce((acc: any, curr: any) => {
+        const branchName = curr.branches.name;
+        if (!acc[branchName]) {
+          acc[branchName] = {
+            sales: 0,
+            service: 0,
+            phones: 0,
+            sims: 0,
+            entries: 0
+          };
+        }
+        acc[branchName].sales += Number(curr.total_sales);
+        acc[branchName].service += Number(curr.service_amount);
+        acc[branchName].phones += curr.smartphone_count;
+        acc[branchName].sims += curr.sim_count;
+        acc[branchName].entries += 1;
+        return acc;
+      }, {});
+
+      return Object.entries(branchStats).map(([name, stats]) => ({
+        name,
+        ...stats
+      }));
+    },
+    enabled: !!profile
+  });
+
+  const handleFilterChange = (val: string) => {
+    setFilter(val);
+    const now = new Date();
+    if (val === 'monthly') {
+      setDateRange({
+        start: format(startOfMonth(now), 'yyyy-MM-dd'),
+        end: format(endOfMonth(now), 'yyyy-MM-dd')
+      });
+    } else if (val === 'yearly') {
+      setDateRange({
+        start: format(startOfYear(now), 'yyyy-MM-dd'),
+        end: format(endOfYear(now), 'yyyy-MM-dd')
+      });
+    }
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        <header className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Reports</h2>
+          <Button variant="outline" size="sm" className="rounded-xl gap-2">
+            <Download size={16} className="mr-1" />
+            Export
+          </Button>
+        </header>
+
+        <Card className="border-none shadow-sm">
+          <CardHeader className="bg-slate-50 p-4">
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-slate-400" />
+              <div>
+                <h3 className="text-sm font-bold">Filter by:</h3>
+                <div className="space-y-1">
+                  <Select value={filter} onValueChange={handleFilterChange} className="w-full">
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Calendar size={14} className="text-slate-400" />
+                <div>
+                  <h3 className="text-sm font-bold">Date Range</h3>
+                  <div className="space-y-1">
+                    <Select value={dateRange.start} onValueChange={(val) => setDateRange({ ...dateRange, start: val })}>
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={format(startOfMonth(new Date()), 'yyyy-MM-dd')}>Start of Month</SelectItem>
+                        <SelectItem value={format(startOfYear(new Date()), 'yyyy-MM-dd')}>Start of Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Select value={dateRange.end} onValueChange={(val) => setDateRange({ ...dateRange, end: val })}>
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={format(endOfMonth(new Date()), 'yyyy-MM-dd')}>End of Month</SelectItem>
+                        <SelectItem value={format(endOfYear(new Date()), 'yyyy-MM-dd')}>End of Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          {reportData?.map((branch: any) => (
+            <Card key={branch.name} className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <div className="bg-indigo-600 px-4 py-2 text-white text-xs font-bold flex justify-between">
+                <span>{branch.name}</span>
+                <span>{branch.entries} Entries</span>
+              </div>
+              <CardContent className="p-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Total Sales</p>
+                  <p className="text-lg font-bold text-slate-800">${branch.sales.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Service</p>
+                  <p className="text-lg font-bold text-indigo-600">${branch.service.toLocaleString()}</p>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg">
+                  <Smartphone size={14} className="text-blue-500" />
+                  <span className="text-xs font-bold">{$branch.phones} Phones</span>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg">
+                  <CreditCard size={14} className="text-emerald-500" />
+                  <span className="text-xs font-bold">{$branch.sims} SIMs</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </Layout>
+  );
+};
+
+export default Reports;
