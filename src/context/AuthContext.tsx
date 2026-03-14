@@ -9,6 +9,7 @@ interface Profile {
   role: 'superadmin' | 'owner' | 'partner' | 'employee';
   company_id: string | null;
   full_name: string;
+  company_name?: string;
   is_hidden: boolean;
 }
 
@@ -29,14 +30,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    if (data) setProfile(data);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*, companies(name)')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (data) {
+        setProfile({
+          ...data,
+          company_name: data.companies?.name
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -60,8 +71,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signOut: () => supabase.auth.signOut() }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
