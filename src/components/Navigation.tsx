@@ -29,21 +29,25 @@ const Navigation = () => {
               )
             }
           >
-            {item.primary ? (
-              <div className="bg-indigo-600 p-3.5 rounded-full shadow-lg shadow-indigo-200 text-white transform hover:scale-110 active:scale-95 transition-all border-4 border-white">
-                <item.icon size={24} strokeWidth={2.5} />
-              </div>
-            ) : (
+            {({ isActive }) => (
               <>
-                <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={cn(
-                  "text-[10px] mt-1 font-semibold tracking-tight",
-                  isActive ? "text-indigo-600" : "text-slate-400"
-                )}>
-                  {item.label}
-                </span>
-                {isActive && (
-                  <span className="absolute -bottom-1 w-1 h-1 bg-indigo-600 rounded-full" />
+                {item.primary ? (
+                  <div className="bg-indigo-600 p-3.5 rounded-full shadow-lg shadow-indigo-200 text-white transform hover:scale-110 active:scale-95 transition-all border-4 border-white">
+                    <item.icon size={24} strokeWidth={2.5} />
+                  </div>
+                ) : (
+                  <>
+                    <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                    <span className={cn(
+                      "text-[10px] mt-1 font-semibold tracking-tight",
+                      isActive ? "text-indigo-600" : "text-slate-400"
+                    )}>
+                      {item.label}
+                    </span>
+                    {isActive && (
+                      <span className="absolute -bottom-1 w-1 h-1 bg-indigo-600 rounded-full" />
+                    )}
+                  </>
                 )}
               </>
             )}
