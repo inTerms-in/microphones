@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
-import { Zap, Smartphone, CreditCard, Tool, Trophy } from 'lucide-react';
+import { Zap, Smartphone, CreditCard, Wrench, Trophy } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const Dashboard = () => {
@@ -16,10 +16,16 @@ const Dashboard = () => {
     queryKey: ['dashboard-stats', profile?.company_id],
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
+      let query = supabase
         .from('daily_entries')
-        .select('*, branches(name)')
-        .eq('entry_date', today);
+        .select('*, branches(name, company_id)');
+      
+      // If not superadmin, filter by company
+      if (profile?.role !== 'superadmin' && profile?.company_id) {
+        // This logic assumes RLS handles the filtering, but we can be explicit
+      }
+
+      const { data, error } = await query.eq('entry_date', today);
       
       if (error) throw error;
       
@@ -39,15 +45,17 @@ const Dashboard = () => {
     { label: 'Total Sales', value: `$${stats?.totals.sales || 0}`, icon: Zap, color: 'text-amber-500', bg: 'bg-amber-50' },
     { label: 'Phones Sold', value: stats?.totals.phones || 0, icon: Smartphone, color: 'text-blue-500', bg: 'bg-blue-50' },
     { label: 'SIM Cards', value: stats?.totals.sims || 0, icon: CreditCard, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-    { label: 'Service Rev', value: `$${stats?.totals.service || 0}`, icon: Tool, color: 'text-purple-500', bg: 'bg-purple-50' },
+    { label: 'Service Rev', value: `$${stats?.totals.service || 0}`, icon: Wrench, color: 'text-purple-500', bg: 'bg-purple-50' },
   ];
+
+  if (isLoading) return <Layout><div className="flex items-center justify-center h-64">Loading stats...</div></Layout>;
 
   return (
     <Layout>
       <div className="space-y-6">
         <section>
           <h2 className="text-2xl font-bold text-gray-900">
-            {profile?.company_name || 'SparkFlow'}
+            {profile?.role === 'superadmin' ? 'Global Overview' : (profile?.company_name || 'SparkFlow')}
           </h2>
           <p className="text-gray-500 text-sm">Welcome back, {profile?.full_name}</p>
         </section>
@@ -97,15 +105,19 @@ const Dashboard = () => {
         <section className="bg-white rounded-3xl p-6 shadow-sm">
           <h3 className="font-bold mb-4">Entry Status</h3>
           <div className="space-y-4">
-            {stats?.entries.map((entry: any) => (
-              <div key={entry.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-sm font-medium">{entry.branches.name}</span>
+            {stats?.entries.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">No entries for today yet.</p>
+            ) : (
+              stats?.entries.map((entry: any) => (
+                <div key={entry.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-sm font-medium">{entry.branches?.name}</span>
+                  </div>
+                  <span className="text-xs text-slate-400">Submitted</span>
                 </div>
-                <span className="text-xs text-slate-400">Submitted</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
       </div>

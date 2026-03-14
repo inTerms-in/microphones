@@ -6,10 +6,11 @@ import { Session, User } from '@supabase/supabase-js';
 
 interface Profile {
   id: string;
-  role: 'owner' | 'partner' | 'employee';
+  role: 'superadmin' | 'owner' | 'partner' | 'employee';
   company_id: string | null;
   full_name: string;
   company_name?: string;
+  is_hidden: boolean;
 }
 
 interface Permission {
@@ -70,16 +71,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profileError) throw profileError;
 
-      const { data: permData } = await supabase
-        .from('page_permissions')
-        .select('*')
-        .eq('user_id', userId);
+      // Superadmins get all permissions by default
+      if (profileData.role === 'superadmin') {
+        setPermissions([
+          { page_name: 'dashboard', can_view: true, can_insert: true, can_update: true, can_delete: true },
+          { page_name: 'entry', can_view: true, can_insert: true, can_update: true, can_delete: true },
+          { page_name: 'reports', can_view: true, can_insert: true, can_update: true, can_delete: true },
+          { page_name: 'settings', can_view: true, can_insert: true, can_update: true, can_delete: true },
+        ]);
+      } else {
+        const { data: permData } = await supabase
+          .from('page_permissions')
+          .select('*')
+          .eq('user_id', userId);
+        setPermissions(permData || []);
+      }
 
       setProfile({
         ...profileData,
         company_name: profileData.companies?.name
       });
-      setPermissions(permData || []);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {

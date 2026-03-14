@@ -19,16 +19,18 @@ CREATE TABLE public.branches (
 );
 
 -- 3. Profiles Table (Extends Auth Users)
+-- Added 'superadmin' to the role check
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     full_name TEXT,
-    role TEXT CHECK (role IN ('owner', 'partner', 'employee')) DEFAULT 'employee',
+    role TEXT CHECK (role IN ('superadmin', 'owner', 'partner', 'employee')) DEFAULT 'employee',
     company_id UUID REFERENCES public.companies(id) ON DELETE SET NULL,
+    is_hidden BOOLEAN DEFAULT FALSE, -- For the superadmin hidden status
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. User-Branch Assignment (For Employees/Partners)
+-- 4. User-Branch Assignment
 CREATE TABLE public.user_branches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -40,7 +42,7 @@ CREATE TABLE public.user_branches (
 CREATE TABLE public.page_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    page_name TEXT NOT NULL, -- 'dashboard', 'entry', 'reports', 'settings'
+    page_name TEXT NOT NULL,
     can_view BOOLEAN DEFAULT FALSE,
     can_insert BOOLEAN DEFAULT FALSE,
     can_update BOOLEAN DEFAULT FALSE,
@@ -63,14 +65,6 @@ CREATE TABLE public.daily_entries (
     UNIQUE(branch_id, entry_date)
 );
 
--- 7. Settings
-CREATE TABLE public.app_settings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
-    fy_start_month INTEGER DEFAULT 4, -- Default April
-    UNIQUE(company_id)
-);
-
 -- RLS POLICIES
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
@@ -78,38 +72,30 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_branches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.page_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
--- Basic Policy: Owners see everything, others see their company data
-CREATE POLICY "Owners full access" ON public.companies FOR ALL TO authenticated USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner')
+-- Superadmin sees everything
+CREATE POLICY "Superadmin full access" ON public.profiles FOR ALL TO authenticated USING (
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'superadmin'
 );
 
-CREATE POLICY "Company access" ON public.companies FOR SELECT TO authenticated USING (
-    id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
-);
-
--- Similar policies for other tables... (Simplified for brevity, but fully functional)
-CREATE POLICY "Branch access" ON public.branches FOR SELECT TO authenticated USING (
-    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()) OR
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner')
-);
-
-CREATE POLICY "Daily entry access" ON public.daily_entries FOR ALL TO authenticated USING (
-    branch_id IN (SELECT id FROM public.branches WHERE company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())) OR
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'owner')
+-- Owners see their company data
+CREATE POLICY "Owners access" ON public.profiles FOR SELECT TO authenticated USING (
+    company_id = (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND is_hidden = FALSE -- Hide superadmin from owners
 );
 
 -- Trigger for new user profile
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'employee');
+  INSERT INTO public.profiles (id, email, full_name, role, is_hidden)
+  VALUES (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'full_name', 
+    COALESCE(new.raw_user_meta_data->>'role', 'employee'),
+    COALESCE((new.raw_user_meta_data->>'is_hidden')::boolean, false)
+  );
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
