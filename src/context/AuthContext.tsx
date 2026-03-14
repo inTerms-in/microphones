@@ -9,23 +9,13 @@ interface Profile {
   role: 'superadmin' | 'owner' | 'partner' | 'employee';
   company_id: string | null;
   full_name: string;
-  company_name?: string;
   is_hidden: boolean;
-}
-
-interface Permission {
-  page_name: string;
-  can_view: boolean;
-  can_insert: boolean;
-  can_update: boolean;
-  can_delete: boolean;
 }
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
-  permissions: Permission[];
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -36,8 +26,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (data) setProfile(data);
+    setLoading(false);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -53,7 +53,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) fetchProfile(session.user.id);
       else {
         setProfile(null);
-        setPermissions([]);
         setLoading(false);
       }
     });
@@ -61,49 +60,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*, companies(name)')
-        .eq('id', userId)
-        .single();
-
-      if (profileError) throw profileError;
-
-      // Superadmins get all permissions by default
-      if (profileData.role === 'superadmin') {
-        setPermissions([
-          { page_name: 'dashboard', can_view: true, can_insert: true, can_update: true, can_delete: true },
-          { page_name: 'entry', can_view: true, can_insert: true, can_update: true, can_delete: true },
-          { page_name: 'reports', can_view: true, can_insert: true, can_update: true, can_delete: true },
-          { page_name: 'settings', can_view: true, can_insert: true, can_update: true, can_delete: true },
-        ]);
-      } else {
-        const { data: permData } = await supabase
-          .from('page_permissions')
-          .select('*')
-          .eq('user_id', userId);
-        setPermissions(permData || []);
-      }
-
-      setProfile({
-        ...profileData,
-        company_name: profileData.companies?.name
-      });
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
-    <AuthContext.Provider value={{ session, user, profile, permissions, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, signOut: () => supabase.auth.signOut() }}>
       {children}
     </AuthContext.Provider>
   );
@@ -111,6 +69,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
