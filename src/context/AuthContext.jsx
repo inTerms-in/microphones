@@ -9,6 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [permissions, setPermissions] = useState([]);
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [logoutReason, setLogoutReason] = useState(null);
 
   useEffect(() => {
     if (companyName) {
@@ -41,24 +42,43 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    setUser(authUser);
-    
     // Fetch detailed profile and granular permissions
     try {
       const [profileRes, permRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', authUser.id).single(),
+        supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle(),
         supabase.from('page_permissions').select('*').eq('user_id', authUser.id)
       ]);
 
-      if (profileRes.data) {
-        setProfile(profileRes.data);
-        const { data: companyData } = await supabase
-          .from('companies')
-          .select('name')
-          .eq('id', profileRes.data.company_id)
-          .single();
-        if (companyData) setCompanyName(companyData.name);
+      // GATEKEEPER: Check if user profile exists and is allowed to access the system
+      if (!profileRes.data) {
+        console.warn('User profile missing - forcing logout.');
+        setLogoutReason('Your account has been deleted. Please contact administration.');
+        await supabase.auth.signOut();
+        return;
       }
+
+      const prof = profileRes.data;
+      if (!prof.is_active || !prof.can_login) {
+        console.warn('User disabled/deactivated - forcing logout.');
+        setLogoutReason('Your account has been deactivated. Access denied.');
+        await supabase.auth.signOut();
+        return;
+      }
+
+      // ONLY SET USER AFTER PROFILE VALIDATION
+      setProfile(prof);
+      setUser(authUser);
+      
+      // Fetch company name...
+      
+      // Fetch company name
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('id', prof.company_id)
+        .single();
+      if (companyData) setCompanyName(companyData.name);
+
       if (permRes.data) setPermissions(permRes.data);
     } catch (error) {
       console.error('Error fetching user metadata:', error);
@@ -102,7 +122,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, permissions, companyName, refreshCompanyName, checkPermission, loading, logout }}>
+    <AuthContext.Provider value={{ user, profile, permissions, companyName, refreshCompanyName, checkPermission, loading, logout, logoutReason, setLogoutReason }}>
       {children}
     </AuthContext.Provider>
   );

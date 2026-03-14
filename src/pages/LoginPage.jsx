@@ -8,8 +8,16 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const { user, companyName } = useAuth();
+  const { user, companyName, logoutReason, setLogoutReason } = useAuth();
   const navigate = useNavigate();
+
+  // Show logout reason if redirected from forced logout
+  React.useEffect(() => {
+    if (logoutReason) {
+      setError(logoutReason);
+      // We don't clear it immediately so it stays visible on the login page
+    }
+  }, [logoutReason]);
 
   if (user) return <Navigate to="/dashboard" />;
 
@@ -17,14 +25,46 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    if (setLogoutReason) setLogoutReason(null); // Clear any previous forced logout reason
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: { user: authUser }, error: authError } = await supabase.auth.signInWithPassword({ email, password });
     
-    if (error) {
-      setError(error.message);
+    if (authError) {
+      setError(authError.message);
       setLoading(false);
-    } else {
+      return;
+    }
+
+    // NEW PRE-NAV GATEKEEPER: Verify profile before moving to dashboard
+    try {
+      const { data: prof, error: profError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (profError || !prof) {
+        setError('Your account has been deleted. Please contact administration.');
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      if (!prof.is_active || !prof.can_login) {
+        setError('Your account has been deactivated. Access denied.');
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      // If valid, AuthContext listener will handle the state update, 
+      // but we navigate here to ensure smooth flow.
       navigate('/dashboard');
+    } catch (err) {
+      console.error('Login verification error:', err);
+      setError('An error occurred during verification.');
+      await supabase.auth.signOut();
+      setLoading(false);
     }
   };
 

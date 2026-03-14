@@ -289,7 +289,31 @@ const SettingsPage = () => {
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px' }}>
                 <button onClick={() => openPermissionEditor(member)} title="Permissions" style={{ padding: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', color: 'var(--accent-color)' }}><Shield size={13} /></button>
-                <button onClick={async () => { if(confirm('Delete user?')) { await supabase.from('profiles').delete().eq('id', member.id); fetchTeam(); } }} style={{ padding: '5px', background: 'rgba(255,61,0,0.1)', borderRadius: '4px', color: 'var(--error)' }}><Trash2 size={13} /></button>
+                <button onClick={async () => { 
+                  if (member.email === 'admin@micro.com') {
+                    alert('System owner cannot be deleted.');
+                    return;
+                  }
+                  if (member.id === profile?.id) {
+                    alert('You cannot delete your own account while logged in.');
+                    return;
+                  }
+                  if(confirm(`Delete user ${member.full_name}? Their profile will be removed, but historical sales data created by them will be preserved.`)) { 
+                    try {
+                      // Cleanup permissions and branch links
+                      await supabase.from('page_permissions').delete().eq('user_id', member.id);
+                      await supabase.from('user_branches').delete().eq('user_id', member.id);
+                      
+                      const { error } = await supabase.from('profiles').delete().eq('id', member.id);
+                      if (error) throw error;
+                      
+                      fetchTeam(); 
+                    } catch (err) {
+                      console.error('Deletion error:', err);
+                      alert('Could not delete user. You may want to deactivate them instead.');
+                    }
+                  } 
+                }} style={{ padding: '5px', background: 'rgba(255,61,0,0.1)', borderRadius: '4px', color: 'var(--error)' }}><Trash2 size={13} /></button>
               </div>
             </div>
           ))}
