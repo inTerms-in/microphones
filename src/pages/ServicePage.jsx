@@ -149,25 +149,28 @@ const ServicePage = () => {
   };
 
   const getJobMessage = (job) => {
+    const est = parseFloat(job.estimate_cost) || 0;
+    const adv = parseFloat(job.advance_paid) || 0;
+    const bal = est - adv;
     return `*Service Job Confirmation - ${companyName}*\n\n` +
       `Hello ${job.customer_name},\n` +
-      `Your repair job for *${job.device_model}* has been registered.\n\n` +
+      `Your job for *${job.device_model}* (${job.job_type === 'house' ? 'Internal' : 'Customer'}) has been registered.\n\n` +
       `*Job ID:* ${job.id.slice(0, 8).toUpperCase()}\n` +
       `*Problem:* ${job.problem_description || 'N/A'}\n` +
-      `*Estimate:* ₹${job.estimate_cost}\n` +
-      `*Advance:* ₹${job.advance_paid}\n` +
-      `*Balance:* ₹${job.estimate_cost - job.advance_paid}\n` +
+      `*Estimate:* ₹${est}\n` +
+      `*Advance:* ₹${adv}\n` +
+      `*Balance:* ₹${bal}\n` +
       `*Exp. Delivery:* ${job.expected_delivery_date ? new Date(job.expected_delivery_date).toLocaleDateString() : 'TBD'}\n\n` +
-      `Thank you for choosing us!`;
+      `Thank you!`;
   };
 
   const downloadPDF = (job) => {
     const element = document.getElementById('job-slip');
     const opt = {
-      margin: 10,
-      filename: `repair_slip_${job.id.slice(0, 8)}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
+      margin: 5,
+      filename: `slip_${job.id.slice(0, 8)}.pdf`,
+      image: { type: 'jpeg', quality: 1 },
+      html2canvas: { scale: 3, useCORS: true, letterRendering: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     window.html2pdf().from(element).set(opt).save();
@@ -371,11 +374,21 @@ const ServicePage = () => {
               <button onClick={() => { setShowAddModal(false); setItemToEdit(null); }} className="btn-icon"><X size={22} /></button>
             </div>
 
-            <form onSubmit={handleCreateOrUpdateJob} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem' }}>
-              <div className="form-group-standard" style={{ gridColumn: 'span 2' }}>
-                <div style={{ display: 'flex', gap: '5px', padding: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' }}>
-                  <button type="button" onClick={() => setNewJob({...newJob, job_type: 'customer'})} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: newJob.job_type === 'customer' ? 'var(--accent-color)' : 'transparent', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}>CUSTOMER JOB</button>
-                  <button type="button" onClick={() => setNewJob({...newJob, job_type: 'house', customer_name: 'IN-HOUSE / INTERNAL', customer_phone: 'N/A'})} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: newJob.job_type === 'house' ? 'var(--accent-color)' : 'transparent', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}>IN-HOUSE JOB</button>
+            <form onSubmit={handleCreateOrUpdateJob} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+              <div className="form-group-standard" style={{ gridColumn: 'span 2', marginBottom: '5px' }}>
+                <div 
+                  onClick={() => {
+                    const nextType = newJob.job_type === 'customer' ? 'house' : 'customer';
+                    const updates = { job_type: nextType };
+                    if (nextType === 'house') { updates.customer_name = 'IN-HOUSE / INTERNAL'; updates.customer_phone = 'N/A'; }
+                    else { updates.customer_name = ''; updates.customer_phone = ''; }
+                    setNewJob({...newJob, ...updates});
+                  }}
+                  style={{ display: 'flex', width: '100%', padding: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', cursor: 'pointer', position: 'relative', height: '36px', alignItems: 'center' }}
+                >
+                  <div style={{ position: 'absolute', left: newJob.job_type === 'customer' ? '4px' : '50%', width: 'calc(50% - 4px)', height: '28px', background: 'var(--accent-color)', borderRadius: '8px', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 0 }}></div>
+                  <div style={{ flex: 1, textAlign: 'center', zIndex: 1, fontSize: '0.75rem', fontWeight: 800, color: 'white' }}>CUSTOMER JOB</div>
+                  <div style={{ flex: 1, textAlign: 'center', zIndex: 1, fontSize: '0.75rem', fontWeight: 800, color: 'white' }}>IN-HOUSE JOB</div>
                 </div>
               </div>
 
@@ -460,7 +473,11 @@ const ServicePage = () => {
 
               <div className="form-group-standard">
                 <label>Estimate (₹)</label>
-                <input type="number" value={newJob.estimate_cost} onChange={e => setNewJob({...newJob, estimate_cost: e.target.value})} />
+                <input type="number" value={newJob.estimate_cost} onChange={e => setNewJob({...newJob, estimate_cost: e.target.value})} placeholder="0" />
+              </div>
+              <div className="form-group-standard">
+                <label>Advance (₹)</label>
+                <input type="number" value={newJob.advance_paid} onChange={e => setNewJob({...newJob, advance_paid: e.target.value})} placeholder="0" />
               </div>
               <div className="form-group-standard">
                 <label>Delivery Date</label>
@@ -513,23 +530,24 @@ const ServicePage = () => {
                   ) : (
                     <div><label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#777' }}>INTERNAL PURPOSE</label><p style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>{showPrintModal.device_model}</p><p style={{ margin: '5px 0 0 0', fontSize: '0.9rem' }}>{showPrintModal.problem_description}</p></div>
                   )}
-               </div>
-               <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid #ddd' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Est. Total:</span> <span style={{ fontWeight: 800 }}>₹{showPrintModal.estimate_cost}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Advance:</span> <span style={{ color: '#008000' }}>-₹{showPrintModal.advance_paid}</span></div>
-                  <div style={{ borderTop: '1.5px solid #000', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '1rem' }}><span style={{ fontWeight: 900 }}>BALANCE DUE:</span> <span style={{ fontWeight: 900 }}>₹{showPrintModal.estimate_cost - showPrintModal.advance_paid}</span></div>
-               </div>
-               <div style={{ marginTop: '30px', textAlign: 'center' }}>
-                  <div style={{ height: '30px', borderBottom: '1px solid #000', width: '120px', margin: '0 auto 5px' }}></div>
-                  <p style={{ fontSize: '0.6rem', color: '#666' }}>Authorized Signature</p>
-               </div>
-               {showPrintModal.expected_delivery_date && <p style={{ fontSize: '0.75rem', textAlign: 'center', marginTop: '20px', fontWeight: 700 }}>Exp. Delivery: {new Date(showPrintModal.expected_delivery_date).toLocaleDateString()}</p>}
+                          <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid #eee' }}>
+                   <div style={{ fontSize: '0.6rem', fontWeight: 900, color: '#999', marginBottom: '2px', letterSpacing: '1px' }}>PAYMENT SUMMARY</div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}><span>Estimate Total:</span> <span style={{ fontWeight: 800 }}>₹{parseFloat(showPrintModal.estimate_cost) || 0}</span></div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}><span>Advance Paid:</span> <span style={{ color: '#008000', fontWeight: 600 }}>-₹{parseFloat(showPrintModal.advance_paid) || 0}</span></div>
+                   <div style={{ borderTop: '2px solid #000', marginTop: '10px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem' }}><span style={{ fontWeight: 900 }}>BALANCE DUE:</span> <span style={{ fontWeight: 900 }}>₹{(parseFloat(showPrintModal.estimate_cost) || 0) - (parseFloat(showPrintModal.advance_paid) || 0)}</span></div>
+                </div>
+                <div style={{ marginTop: '40px', textAlign: 'center' }}>
+                   <div style={{ borderBottom: '1px solid #000', width: '150px', margin: '0 auto 8px' }}></div>
+                   <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#333' }}>Authorized Signature</p>
+                </div>
+                {showPrintModal.expected_delivery_date && <p style={{ fontSize: '0.85rem', textAlign: 'center', marginTop: '30px', fontWeight: 800, padding: '10px', background: '#eee', borderRadius: '5px' }}>Expected Delivery: {new Date(showPrintModal.expected_delivery_date).toLocaleDateString()}</p>}
                <p style={{ fontSize: '0.65rem', textAlign: 'center', marginTop: '25px', color: '#888' }}>Please provide this slip to collect your device.</p>
-            </div>
-          </div>
         </div>
-      )}
+      </div>
     </div>
+  </div>
+)}
+</div>
   );
 };
 
