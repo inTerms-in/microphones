@@ -167,10 +167,10 @@ const ServicePage = () => {
   const downloadPDF = (job) => {
     const element = document.getElementById('job-slip');
     const opt = {
-      margin: 5,
+      margin: 10,
       filename: `slip_${job.id.slice(0, 8)}.pdf`,
       image: { type: 'jpeg', quality: 1 },
-      html2canvas: { scale: 3, useCORS: true, letterRendering: true },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     window.html2pdf().from(element).set(opt).save();
@@ -367,8 +367,8 @@ const ServicePage = () => {
 
       {/* Registration Modal */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.5rem' }}>
-          <div className="glass animate-fade-in no-scrollbar" style={{ width: '100%', maxWidth: '550px', padding: '1.5rem', maxHeight: '98vh', overflowY: 'auto', borderRadius: '15px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '1rem', paddingTop: '3vh' }}>
+          <div className="glass animate-fade-in no-scrollbar" style={{ width: '100%', maxWidth: '550px', padding: '1.5rem', maxHeight: '94vh', overflowY: 'auto', borderRadius: '15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>{itemToEdit ? 'Update Service' : 'Register Service'}</h2>
               <button onClick={() => { setShowAddModal(false); setItemToEdit(null); }} className="btn-icon"><X size={22} /></button>
@@ -510,7 +510,7 @@ const ServicePage = () => {
                </div>
                <button onClick={() => setShowPrintModal(null)} className="btn-icon" style={{ color: 'black' }}><X size={20} /></button>
             </div>
-            <div id="job-slip" style={{ padding: '40px 30px', background: 'white' }}>
+             <div id="job-slip" style={{ padding: '40px 30px', background: 'white', width: '380px', margin: '0 auto', color: 'black' }}>
                <div style={{ textAlign: 'center', marginBottom: '25px' }}>
                   <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, textTransform: 'uppercase' }}>{companyName}</h1>
                   <p style={{ margin: '5px 0', fontSize: '0.8rem', fontWeight: 700, color: '#666' }}>SERVICE REPAIR SLIP</p>
