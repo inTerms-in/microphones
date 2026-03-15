@@ -253,6 +253,8 @@ select option { background: #1a1a1a; color: white; }
   }
   
   .form-group-standard input, 
+
+  .form-group-standard input,
   .form-group-standard select {
     width: 100% !important;
   }
@@ -265,6 +267,10 @@ select option { background: #1a1a1a; color: white; }
   .main-content table th,
   .main-content table td {
     padding: 0.5rem 0.4rem !important;
+  }
+
+  .team-grid span:last-child {
+    font-size: 0.6rem !important;
   }
 }
 
@@ -361,6 +367,57 @@ select option { background: #1a1a1a; color: white; }
 @media (max-width: 768px) {
   .company-settings-grid {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* ======= Print Styles ======= */
+@media print {
+  /* Hide typical UI elements */
+  .app-sidebar, 
+  .app-header, 
+  .no-print, 
+  .no-print-overlay > div:first-child, /* Hide the print button bar */
+  header, 
+  nav, 
+  aside,
+  button:not(.print-only) {
+    display: none !important;
+  }
+
+  /* Reset body/html for printing */
+  body, html {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Ensure the print overlay/modal container itself is visible but transparent */
+  .no-print-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    background: white !important;
+    display: block !important;
+    z-index: 9999 !important;
+  }
+
+  /* The actual slip */
+  #job-slip {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Hide the rest of the app content */
+  #root > *:not(.no-print-overlay) {
+    display: none !important;
   }
 }
 

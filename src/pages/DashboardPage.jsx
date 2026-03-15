@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   IndianRupee, Smartphone, CreditCard, Activity, Trophy,
   TrendingUp, CheckCircle2, AlertCircle,
-  Receipt, TrendingDown, Calendar
+  Receipt, TrendingDown, Calendar, Wrench
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -28,7 +28,7 @@ const MetricCard = React.memo(({ title, value, unit = "₹", icon: Icon, color, 
 
 const DashboardPage = () => {
   const { user, profile } = useAuth();
-  const [rawData, setRawData] = useState({ branches: [], entries: [] });
+  const [rawData, setRawData] = useState({ branches: [], entries: [], pendingJobs: 0 });
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [filter, setFilter] = useState('week'); // Default to week
   const [customStart, setCustomStart] = useState('');
@@ -56,7 +56,13 @@ const DashboardPage = () => {
           .gte('entry_date', oneYearAgo.toISOString().split('T')[0])
           .order('entry_date', { ascending: true });
 
-        setRawData({ branches: branches || [], entries: entries || [] });
+        // Fetch Pending Service Jobs
+        const { count: pendingJobs } = await supabase
+          .from('service_jobs')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['pending', 'in-progress']);
+
+        setRawData({ branches: branches || [], entries: entries || [], pendingJobs: pendingJobs || 0 });
       } catch (err) { console.error(err); }
       finally { setInitialLoaded(true); }
     };
@@ -173,7 +179,7 @@ const DashboardPage = () => {
     const pct = totalBranches > 0 ? Math.round((branchesSubmitted / totalBranches) * 100) : 0;
 
     return {
-      stats: { totalSales: totals.sales, serviceRevenue: totals.service, smartphonesSold: totals.phones, simCardsSold: totals.sims, branchesSubmitted, totalBranches, submittedBranches: submitted, pendingBranches: pending, topBranch: ranked[0] || null },
+      stats: { totalSales: totals.sales, serviceRevenue: totals.service, smartphonesSold: totals.phones, simCardsSold: totals.sims, branchesSubmitted, totalBranches, submittedBranches: submitted, pendingBranches: pending, topBranch: ranked[0] || null, pendingJobs: rawData.pendingJobs },
       charts: { mainChart: barData, serviceVsProduct: pieData, branchPerformance: ranked },
       pct
     };
@@ -207,11 +213,12 @@ const DashboardPage = () => {
       </div>
 
       {/* Metrics Row */}
-      <div className="metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}>
+      <div className="metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
         <MetricCard title="Total Sales" value={stats.totalSales} color="#00d2ff" icon={IndianRupee} />
         <MetricCard title="Smartphones" value={stats.smartphonesSold} isCurrency={false} color="#00c853" icon={Smartphone} />
         <MetricCard title="SIM Cards" value={stats.simCardsSold} isCurrency={false} color="#f59e0b" icon={CreditCard} />
         <MetricCard title="Service Rev." value={stats.serviceRevenue} color="#a855f7" icon={Receipt} />
+        <MetricCard title="Pending Jobs" value={stats.pendingJobs} isCurrency={false} color="#ec4899" icon={Wrench} />
       </div>
 
       {/* Entry Status + Trophy */}

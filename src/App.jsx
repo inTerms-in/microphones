@@ -5,6 +5,7 @@ import EntryPage from './pages/EntryPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import ReportsPage from './pages/ReportsPage';
+import ServicePage from './pages/ServicePage';
 import Layout from './components/Layout';
 
 const ProtectedRoute = ({ children, pageName }) => {
@@ -47,6 +48,14 @@ function App() {
           <ProtectedRoute pageName="reports">
             <Layout>
               <ReportsPage />
+            </Layout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/service" element={
+          <ProtectedRoute pageName="service">
+            <Layout>
+              <ServicePage />
             </Layout>
           </ProtectedRoute>
         } />

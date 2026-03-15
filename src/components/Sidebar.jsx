@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileEdit, Settings, BarChart3, LogOut, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { LayoutDashboard, FileEdit, Settings, BarChart3, LogOut, ChevronLeft, ChevronRight, Menu, Wrench } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
@@ -11,6 +11,7 @@ const Sidebar = () => {
   const navItems = [
     { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard', show: checkPermission('dashboard', 'view') },
     { name: 'Entry', icon: <FileEdit size={22} />, path: '/entry', show: checkPermission('entryform', 'view'), isCenter: true },
+    { name: 'Services', icon: <Wrench size={20} />, path: '/service', show: checkPermission('service', 'view') },
     { name: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', show: checkPermission('reports', 'view') },
     { name: 'Settings', icon: <Settings size={20} />, path: '/settings', show: checkPermission('settings', 'view') },
   ];
