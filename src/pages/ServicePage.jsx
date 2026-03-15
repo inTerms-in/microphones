@@ -6,7 +6,7 @@ import {
   ChevronRight, Clock, CheckCircle2, 
   AlertCircle, X, Smartphone, User, 
   Phone, Calendar,  IndianRupee, MoreVertical,
-  ExternalLink, Edit2, Trash2, Printer, MessageSquare, Share2
+  ExternalLink, Edit2, Trash2, Printer, MessageSquare, Share2, FileText, Download
 } from 'lucide-react';
 
 const ServicePage = () => {
@@ -33,8 +33,10 @@ const ServicePage = () => {
     advance_paid: '',
     entry_date: new Date().toISOString().split('T')[0],
     expected_delivery_date: '',
+    delivery_date: '',
     assigned_to: user?.id || '',
-    status: 'pending'
+    status: 'pending',
+    job_type: 'customer'
   };
 
   const [newJob, setNewJob] = useState(initialJobState);
@@ -108,8 +110,11 @@ const ServicePage = () => {
   const handleCreateOrUpdateJob = async (e) => {
     if (e) e.preventDefault();
     try {
+      // Create a clean payload to avoid sending computed/nested fields
+      const { branches, assigned_user, assigned_profile, ...cleanJob } = newJob;
+      
       const payload = {
-        ...newJob,
+        ...cleanJob,
         estimate_cost: parseFloat(newJob.estimate_cost) || 0,
         advance_paid: parseFloat(newJob.advance_paid) || 0,
         created_by: user.id
@@ -156,12 +161,23 @@ const ServicePage = () => {
       `Thank you for choosing us!`;
   };
 
-  const sendWhatsAppMessage = (job) => {
-    if (!job.customer_phone) return alert("Customer phone number is required to send a message.");
-    const cleanPhone = job.customer_phone.replace(/\D/g, '');
-    const phoneWithCountry = cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone;
-    const message = getJobMessage(job);
-    window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`, '_blank');
+  const downloadPDF = (job) => {
+    const element = document.getElementById('job-slip');
+    const opt = {
+      margin: 10,
+      filename: `repair_slip_${job.id.slice(0, 8)}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    window.html2pdf().from(element).set(opt).save();
+  };
+
+  const sharePDF = async (job) => {
+    // Note: True PDF sharing via WA from browser requires the user to pick the file.
+    // We will generate the PDF and suggest downloading it first, or send the text slip as fallback.
+    alert("PDF generated. Please download and attach to WhatsApp.");
+    downloadPDF(job);
   };
 
   const updateJobStatus = async (jobId, newStatus) => {
@@ -298,13 +314,18 @@ const ServicePage = () => {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem', alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.85rem', fontWeight: 600 }}>
-                      <Calendar size={14} color="var(--text-secondary)" /> Entry: {new Date(job.entry_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: '2-digit' })}
+                      <Calendar size={14} color="var(--text-secondary)" /> Entry: {new Date(job.entry_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
                    </div>
+                   {job.expected_delivery_date && !job.delivery_date && (
+                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.85rem', fontWeight: 700, color: '#ff9800' }}>
+                        <Clock size={14} /> Expct: {new Date(job.expected_delivery_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                     </div>
+                   )}
                    {job.delivery_date && (
                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#4caf50' }}>
-                        <CheckCircle2 size={14} /> Dlvd: {new Date(job.delivery_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: '2-digit' })}
+                        <CheckCircle2 size={14} /> Delivery: {new Date(job.delivery_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
                      </div>
                    )}
                 </div>
@@ -350,7 +371,14 @@ const ServicePage = () => {
               <button onClick={() => { setShowAddModal(false); setItemToEdit(null); }} className="btn-icon"><X size={22} /></button>
             </div>
 
-            <form onSubmit={handleCreateOrUpdateJob} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+            <form onSubmit={handleCreateOrUpdateJob} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem' }}>
+              <div className="form-group-standard" style={{ gridColumn: 'span 2' }}>
+                <div style={{ display: 'flex', gap: '5px', padding: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px' }}>
+                  <button type="button" onClick={() => setNewJob({...newJob, job_type: 'customer'})} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: newJob.job_type === 'customer' ? 'var(--accent-color)' : 'transparent', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}>CUSTOMER JOB</button>
+                  <button type="button" onClick={() => setNewJob({...newJob, job_type: 'house', customer_name: 'IN-HOUSE / INTERNAL', customer_phone: 'N/A'})} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: newJob.job_type === 'house' ? 'var(--accent-color)' : 'transparent', color: 'white', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}>IN-HOUSE JOB</button>
+                </div>
+              </div>
+
               <div className="form-group-standard">
                 <label>Branch</label>
                 <select 
@@ -374,36 +402,47 @@ const ServicePage = () => {
                 </select>
               </div>
 
-              <div className="form-group-standard" style={{ position: 'relative' }}>
-                <label>Phone / Name Lookup</label>
-                <input value={newJob.customer_phone} 
-                  onChange={e => handlePhoneChange(e.target.value)} 
-                  onKeyDown={handleKeyDown}
-                  onBlur={() => setTimeout(() => setSuggestions([]), 200)}
-                  placeholder="Type to search..." 
-                />
-                {suggestions.length > 0 && (
-                  <div className="glass" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', zIndex: 50, padding: '5px', marginTop: '4px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-                    {suggestions.map((s, i) => (
-                      <div key={i} onMouseEnter={() => setActiveIndex(i)} onClick={() => fillFromSuggestion(s)} 
-                        style={{ padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', background: activeIndex === i ? 'rgba(0,210,255,0.1)' : 'transparent', color: activeIndex === i ? 'var(--accent-color)' : 'inherit' }}>
-                        <span style={{ fontWeight: 800 }}>{s.customer_name}</span> ({s.customer_phone})
-                        <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{s.device_model}</div>
+              {newJob.job_type === 'customer' ? (
+                <>
+                  <div className="form-group-standard" style={{ position: 'relative' }}>
+                    <label>Phone / Name Lookup</label>
+                    <input value={newJob.customer_phone} 
+                      onChange={e => handlePhoneChange(e.target.value)} 
+                      onKeyDown={handleKeyDown}
+                      onBlur={() => setTimeout(() => setSuggestions([]), 200)}
+                      placeholder="Search..." 
+                    />
+                    {suggestions.length > 0 && (
+                      <div className="glass" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', zIndex: 50, padding: '5px', marginTop: '4px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+                        {suggestions.map((s, i) => (
+                          <div key={i} onMouseEnter={() => setActiveIndex(i)} onClick={() => fillFromSuggestion(s)} 
+                            style={{ padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', background: activeIndex === i ? 'rgba(0,210,255,0.1)' : 'transparent', color: activeIndex === i ? 'var(--accent-color)' : 'inherit' }}>
+                            <span style={{ fontWeight: 800 }}>{s.customer_name}</span> ({s.customer_phone})
+                            <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{s.device_model}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
 
-              <div className="form-group-standard">
-                <label>Customer Name</label>
-                <input value={newJob.customer_name} onChange={e => setNewJob({...newJob, customer_name: e.target.value})} required placeholder="John Doe" />
-              </div>
+                  <div className="form-group-standard">
+                    <label>Customer Name</label>
+                    <input value={newJob.customer_name} onChange={e => setNewJob({...newJob, customer_name: e.target.value})} required placeholder="John Doe" />
+                  </div>
+                </>
+              ) : (
+                <div className="form-group-standard" style={{ gridColumn: 'span 2' }}>
+                  <label>Internal Purpose / Title</label>
+                  <input value={newJob.device_model} onChange={e => setNewJob({...newJob, device_model: e.target.value})} required placeholder="e.g. Purchase Duties, Inventory Check..." />
+                </div>
+              )}
 
-              <div className="form-group-standard" style={{ gridColumn: 'span 2' }}>
-                <label>Device Model</label>
-                <input value={newJob.device_model} onChange={e => setNewJob({...newJob, device_model: e.target.value})} required placeholder="e.g., iPhone 13 Pro" />
-              </div>
+              {newJob.job_type === 'customer' && (
+                <div className="form-group-standard" style={{ gridColumn: 'span 2' }}>
+                  <label>Device Model</label>
+                  <input value={newJob.device_model} onChange={e => setNewJob({...newJob, device_model: e.target.value})} required placeholder="e.g. iPhone 13 Pro" />
+                </div>
+              )}
 
               <div className="form-group-standard" style={{ gridColumn: 'span 2' }}>
                 <label>Fault / Problem Description</label>
@@ -424,8 +463,8 @@ const ServicePage = () => {
                 <input type="number" value={newJob.estimate_cost} onChange={e => setNewJob({...newJob, estimate_cost: e.target.value})} />
               </div>
               <div className="form-group-standard">
-                <label>Advance (₹)</label>
-                <input type="number" value={newJob.advance_paid} onChange={e => setNewJob({...newJob, advance_paid: e.target.value})} />
+                <label>Delivery Date</label>
+                <input type="date" value={newJob.delivery_date || ''} onChange={e => setNewJob({...newJob, delivery_date: e.target.value})} />
               </div>
 
               <div style={{ gridColumn: 'span 2', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
@@ -441,14 +480,16 @@ const ServicePage = () => {
       {showPrintModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} className="no-print-overlay">
           <div style={{ background: 'white', color: 'black', width: '100%', maxWidth: '380px', borderRadius: '10px', boxShadow: '0 0 50px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
-            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: '#eee' }}>
-               <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => window.print()} className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>Print Slip</button>
+            <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', padding: '15px', background: '#eee', gap: '10px' }}>
+               <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => window.print()} className="btn-primary" style={{ padding: '8px 12px', fontSize: '0.75rem' }}><Printer size={14} /> Print</button>
+                  <button onClick={() => downloadPDF(showPrintModal)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#00d2ff' }}><Download size={14} /> PDF</button>
+                  <button onClick={() => sharePDF(showPrintModal)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#25D366' }}><Share2 size={14} /> WA PDF</button>
                   <button onClick={() => {
                     const msg = getJobMessage(showPrintModal);
                     const cleanPhone = showPrintModal.customer_phone.replace(/\D/g, '');
                     window.open(`https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-                  }} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem', color: '#25D366', display: 'flex', alignItems: 'center', gap: '6px' }}><Share2 size={16} /> WhatsApp</button>
+                  }} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#25D366' }}><MessageSquare size={14} /> WA Text</button>
                </div>
                <button onClick={() => setShowPrintModal(null)} className="btn-icon" style={{ color: 'black' }}><X size={20} /></button>
             </div>
@@ -459,12 +500,19 @@ const ServicePage = () => {
                </div>
                <div style={{ borderBlock: '1.5px solid #000', padding: '15px 0', margin: '20px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}><span style={{ fontWeight: 800 }}>JOB ID:</span> <span>{showPrintModal.id.slice(0, 8).toUpperCase()}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}><span style={{ fontWeight: 800 }}>TYPE:</span> <span>{showPrintModal.job_type === 'house' ? 'IN-HOUSE' : 'CUSTOMER'}</span></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}><span style={{ fontWeight: 800 }}>DATE:</span> <span>{new Date(showPrintModal.entry_date).toLocaleDateString('en-GB')}</span></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}><span style={{ fontWeight: 800 }}>BRANCH:</span> <span>{showPrintModal.branches?.name}</span></div>
                </div>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
-                  <div><label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#777' }}>CUSTOMER DETAILS</label><p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{showPrintModal.customer_name}</p><p style={{ margin: 0, fontSize: '0.9rem' }}>{showPrintModal.customer_phone}</p></div>
-                  <div><label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#777' }}>DEVICE & FAULT</label><p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{showPrintModal.device_model}</p><p style={{ margin: 0, fontSize: '0.85rem', fontStyle: 'italic' }}>{showPrintModal.problem_description}</p></div>
+                  {showPrintModal.job_type === 'customer' ? (
+                    <>
+                      <div><label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#777' }}>CUSTOMER DETAILS</label><p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{showPrintModal.customer_name}</p><p style={{ margin: 0, fontSize: '0.9rem' }}>{showPrintModal.customer_phone}</p></div>
+                      <div><label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#777' }}>DEVICE & FAULT</label><p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{showPrintModal.device_model}</p><p style={{ margin: 0, fontSize: '0.85rem', fontStyle: 'italic' }}>{showPrintModal.problem_description}</p></div>
+                    </>
+                  ) : (
+                    <div><label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#777' }}>INTERNAL PURPOSE</label><p style={{ margin: 0, fontWeight: 700, fontSize: '1.1rem' }}>{showPrintModal.device_model}</p><p style={{ margin: '5px 0 0 0', fontSize: '0.9rem' }}>{showPrintModal.problem_description}</p></div>
+                  )}
                </div>
                <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid #ddd' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Est. Total:</span> <span style={{ fontWeight: 800 }}>₹{showPrintModal.estimate_cost}</span></div>
