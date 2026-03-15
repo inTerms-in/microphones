@@ -72,12 +72,16 @@ export const AuthProvider = ({ children }) => {
       // Fetch company name...
       
       // Fetch company name
-      const { data: companyData } = await supabase
-        .from('companies')
-        .select('name')
-        .eq('id', prof.company_id)
-        .single();
-      if (companyData) setCompanyName(companyData.name);
+      if (prof.company_id) {
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', prof.company_id)
+          .single();
+        if (companyData) setCompanyName(companyData.name);
+      } else {
+        setCompanyName('Microphone Mobiles'); // Generic fallback if no company assigned
+      }
 
       if (permRes.data) setPermissions(permRes.data);
     } catch (error) {

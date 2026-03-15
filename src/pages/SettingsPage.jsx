@@ -97,10 +97,13 @@ const SettingsPage = () => {
           const { error: branchErr } = await supabase.from('user_branches').insert(
             newUser.branches.map(bId => ({ user_id: newUserId, branch_id: bId }))
           );
-          if (branchErr) console.error('Branch assignment error:', branchErr);
         }
-      } else {
+      } else if (userData?.status !== 'reactivated') {
         throw new Error('Failed to retrieve new user ID. Please check if user already exists.');
+      }
+
+      if (userData?.status === 'reactivated') {
+        alert('User already exists in system records. Account has been UPDATED and REACTIVATED with new details.');
       }
 
       setNewUser({ email: '', password: '', fullName: '', role: 'employee', is_active: true, can_login: true, branches: [] });
@@ -109,11 +112,12 @@ const SettingsPage = () => {
     } catch (err) { 
       let msg = err.message;
       if (msg.includes('duplicate key') || msg.includes('already exists')) {
-        msg = 'User already exist.';
+        msg = 'User already exists and is active.';
       }
       alert(msg); 
+    } finally { 
+      setCreating(false); 
     }
-    finally { setCreating(false); }
   };
 
   const handleCreateBranch = async (e) => {
@@ -324,19 +328,18 @@ const SettingsPage = () => {
                     alert('You cannot delete your own account while logged in.');
                     return;
                   }
-                  if(confirm(`Delete user ${member.full_name}? Their profile will be removed, but historical sales data created by them will be preserved.`)) { 
+                  if(confirm(`DEACTIVATE user ${member.full_name}? Their login will be disabled, but their profile and historical data will remain for records. You can reactivate them later.`)) { 
                     try {
-                      // Cleanup permissions and branch links
-                      await supabase.from('page_permissions').delete().eq('user_id', member.id);
-                      await supabase.from('user_branches').delete().eq('user_id', member.id);
-                      
-                      const { error } = await supabase.from('profiles').delete().eq('id', member.id);
+                      const { error } = await supabase.from('profiles').update({ 
+                        is_active: false, 
+                        can_login: false 
+                      }).eq('id', member.id);
                       if (error) throw error;
                       
                       fetchTeam(); 
                     } catch (err) {
-                      console.error('Deletion error:', err);
-                      alert('Could not delete user. You may want to deactivate them instead.');
+                      console.error('Deactivation error:', err);
+                      alert('Could not deactivate user.');
                     }
                   } 
                 }} style={{ padding: '5px', background: 'rgba(255,61,0,0.1)', borderRadius: '4px', color: 'var(--error)' }}><Trash2 size={13} /></button>
@@ -613,12 +616,6 @@ const CompanySettings = ({ company, setCompany }) => {
           }} className="btn-primary" style={{ width: '100%', fontSize: '0.7rem', padding: '8px' }}>Download Backup</button>
         </div>
       </div>
-      {editMember && <UserEditModal 
-          data={editData} 
-          setData={setEditData} 
-          onClose={() => setEditMember(null)} 
-          onSubmit={handleUpdateUser} 
-      />}
     </div>
   );
 };
