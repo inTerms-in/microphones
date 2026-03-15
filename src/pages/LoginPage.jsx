@@ -28,7 +28,7 @@ const LoginPage = () => {
     if (setLogoutReason) setLogoutReason(null); // Clear any previous forced logout reason
 
     const { data: { user: authUser }, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    
+
     if (authError) {
       setError(authError.message);
       setLoading(false);
@@ -44,7 +44,7 @@ const LoginPage = () => {
         .maybeSingle();
 
       if (profError || !prof) {
-        setError('Your account has been deleted. Please contact administration.');
+        setError('Your account has been deleted.. Please contact administration.');
         await supabase.auth.signOut();
         setLoading(false);
         return;
@@ -73,24 +73,24 @@ const LoginPage = () => {
       <div className="glass animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
         <h1 className="text-gradient" style={{ marginBottom: '0.25rem', fontSize: '1.75rem' }}>{companyName || 'Welcome'}</h1>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem', fontWeight: 500 }}>System Login</p>
-        
+
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Email Address</label>
-            <input 
-              type="email" 
-              placeholder="admin@micro.com" 
+            <input
+              type="email"
+              placeholder="admin@micro.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Password</label>
-            <input 
-              type="password" 
-              placeholder="••••••••" 
+            <input
+              type="password"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
