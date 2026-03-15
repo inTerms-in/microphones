@@ -253,7 +253,7 @@ const ServicePage = () => {
 
   return (
     <div className="animate-fade-in" style={{ paddingBottom: '2rem' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <header className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h1 className="text-gradient" style={{ fontSize: '1.5rem', fontWeight: 800 }}>Mobile Service Jobs</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Track repairs and customer deliveries</p>
@@ -264,7 +264,7 @@ const ServicePage = () => {
       </header>
 
       {/* Filters Bar */}
-      <div className="glass" style={{ padding: '1rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+      <div className="glass no-print" style={{ padding: '1rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
           <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
           <input 
@@ -290,9 +290,9 @@ const ServicePage = () => {
 
       {/* Jobs Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>Loading jobs...</div>
+        <div className="no-print" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>Loading jobs...</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+        <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
           {filteredJobs.length === 0 ? (
             <div className="glass" style={{ gridColumn: '1/-1', padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No jobs found.</div>
           ) : filteredJobs.map(job => (

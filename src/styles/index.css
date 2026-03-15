@@ -372,66 +372,56 @@ select option { background: #1a1a1a; color: white; }
 
 /* ======= Print Styles ======= */
 @media print {
-  /* Hide typical UI elements */
-  .app-sidebar, 
-  .app-header, 
-  .no-print, 
-  .no-print-overlay > div:first-child, /* Hide the print button bar */
-  header, 
-  nav, 
-  aside,
-  button:not(.print-only) {
-    display: none !important;
+  /* Nuclear option: hide everything in the entire document */
+  * {
+    visibility: hidden !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
 
-  /* Reset body/html for printing */
-  body, html {
+  /* Force white background for the page itself */
+  html, body {
+    visibility: visible !important;
     background: white !important;
     color: black !important;
+    width: 100% !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
   }
 
-  /* Ensure the print overlay/modal container itself is visible but transparent */
-  .no-print-overlay {
-    position: absolute !important;
-    inset: 0 !important;
-    background: white !important;
-    display: block !important;
-    z-index: 9999 !important;
-  }
-
-  /* The actual slip */
-  #job-slip {
-    display: block !important;
-    visibility: visible !important;
-    position: absolute !important;
-    left: 50% !important;
-    top: 20px !important;
-    transform: translateX(-50%) !important;
-    width: 80mm !important; /* Standard thermal width or compact slip */
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 10mm !important;
-    box-shadow: none !important;
-    border: 1px solid #eee !important;
-    background: white !important;
-    color: black !important;
-  }
-
-  /* Ensure every single element inside the slip is black */
+  /* Specifically re-enable the slip and every one of its sub-elements to be visible and black */
   #job-slip,
-  #job-slip *, 
-  #job-slip span, 
-  #job-slip p, 
-  #job-slip h1, 
-  #job-slip h2, 
-  #job-slip label,
-  #job-slip div {
-    color: #000000 !important;
+  #job-slip * {
     visibility: visible !important;
+    color: black !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Isolate the slip at the very top of the printed page */
+  #job-slip {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important; /* Standard slip/thermal width */
+    padding: 5mm !important;
+    margin: 0 !important;
+    border: none !important;
+    background: white !important;
+  }
+
+  /* Completely remove UI elements that might try to show up */
+  .no-print, 
+  header, 
+  nav, 
+  button, 
+  aside,
+  .no-print-overlay > div:first-child {
+    display: none !important;
   }
 }
 
