@@ -30,6 +30,8 @@ const SettingsPage = () => {
   const [branchEditData, setBranchEditData] = useState({ name: '', location: '' });
 
   const [editingUser, setEditingUser] = useState(null);
+  const [editMember, setEditMember] = useState(null);
+  const [editData, setEditData] = useState({ fullName: '', email: '', password: '', role: '' });
   const [userPerms, setUserPerms] = useState([]);
   const [userBranches, setUserBranches] = useState({});
 
@@ -143,6 +145,26 @@ const SettingsPage = () => {
       await supabase.from('user_branches').insert([{ user_id: userId, branch_id: branchId }]);
     }
     fetchAssignments();
+  };
+  
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const { data, error } = await supabase.rpc('admin_update_user', {
+        target_user_id: editMember.id,
+        new_email: editData.email,
+        new_password: editData.password || null,
+        new_full_name: editData.fullName,
+        new_role: editData.role
+      });
+      if (error) throw error;
+      if (data?.status === 'error') throw new Error(data.message);
+      
+      setEditMember(null);
+      fetchTeam();
+    } catch (err) {
+      alert('Error updating user: ' + err.message);
+    }
   };
 
   const openPermissionEditor = async (user) => {
@@ -288,6 +310,10 @@ const SettingsPage = () => {
 
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px' }}>
+                <button onClick={() => {
+                  setEditMember(member);
+                  setEditData({ fullName: member.full_name, email: member.email, password: '', role: member.role });
+                }} title="Edit Personal Details" style={{ padding: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', color: 'var(--accent-color)' }}><Edit2 size={13} /></button>
                 <button onClick={() => openPermissionEditor(member)} title="Permissions" style={{ padding: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', color: 'var(--accent-color)' }}><Shield size={13} /></button>
                 <button onClick={async () => { 
                   if (member.email === 'admin@micro.com') {
@@ -441,6 +467,13 @@ const SettingsPage = () => {
         const { error } = await supabase.from('page_permissions').update({ [f]: v }).eq('id', pId);
         if (!error) setUserPerms(userPerms.map(p => p.id === pId ? { ...p, [f]: v } : p));
       }} onClose={() => setEditingUser(null)} />}
+
+      {editMember && <UserEditModal 
+          data={editData} 
+          setData={setEditData} 
+          onClose={() => setEditMember(null)} 
+          onSubmit={handleUpdateUser} 
+      />}
     </div>
   );
 };
@@ -580,9 +613,52 @@ const CompanySettings = ({ company, setCompany }) => {
           }} className="btn-primary" style={{ width: '100%', fontSize: '0.7rem', padding: '8px' }}>Download Backup</button>
         </div>
       </div>
+      {editMember && <UserEditModal 
+          data={editData} 
+          setData={setEditData} 
+          onClose={() => setEditMember(null)} 
+          onSubmit={handleUpdateUser} 
+      />}
     </div>
   );
 };
+
+const UserEditModal = ({ data, setData, onClose, onSubmit }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+    <div className="glass animate-fade-in" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
+       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 800 }}>Edit User Profile</h2>
+          <button onClick={onClose}><X size={20} /></button>
+       </div>
+       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="form-group-standard">
+            <label>Full Name</label>
+            <input value={data.fullName} onChange={e => setData({...data, fullName: e.target.value})} required />
+          </div>
+          <div className="form-group-standard">
+            <label>Email Address</label>
+            <input type="email" value={data.email} onChange={e => setData({...data, email: e.target.value})} required />
+          </div>
+          <div className="form-group-standard">
+            <label>New Password (Optional)</label>
+            <input type="text" placeholder="Leave blank to keep current" value={data.password} onChange={e => setData({...data, password: e.target.value})} />
+          </div>
+          <div className="form-group-standard">
+            <label>Role</label>
+            <select value={data.role} onChange={e => setData({...data, role: e.target.value})}>
+              <option value="employee">Employee</option>
+              <option value="partner">Partner</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+            <button type="submit" className="btn-primary" style={{ flex: 1 }}>Save Changes</button>
+          </div>
+       </form>
+    </div>
+  </div>
+);
 
 const PermissionMatrix = ({ user, perms, onToggle, onClose }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
