@@ -14,8 +14,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (companyName) {
       document.title = companyName;
-    } else {
-      document.title = 'Smart Sales Tracker';
     }
   }, [companyName]);
 
@@ -80,7 +78,9 @@ export const AuthProvider = ({ children }) => {
           .single();
         if (companyData) setCompanyName(companyData.name);
       } else {
-        setCompanyName('Microphone Mobiles'); // Generic fallback if no company assigned
+        // Ultimate fallback if no company ID is assigned to user yet
+        const { data: fallbackComp } = await supabase.from('companies').select('name').eq('is_active', true).limit(1).single();
+        if (fallbackComp) setCompanyName(fallbackComp.name);
       }
 
       if (permRes.data) setPermissions(permRes.data);

@@ -108,7 +108,7 @@ const LoginPage = () => {
           </button>
         </form>
         <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '2px', color: 'var(--text-secondary)', opacity: 0.3 }}>inTerms</span>
+          <span style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '2px', color: 'var(--text-secondary)', opacity: 0.1 }}>SST v1.0.4</span>
         </div>
       </div>
     </div>

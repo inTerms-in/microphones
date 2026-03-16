@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
   BarChart, Bar, Legend
 } from 'recharts';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const MetricCard = React.memo(({ title, value, unit = "₹", icon: Icon, color, isCurrency = true }) => (
   <div className="glass card-hover metric-card" style={{ padding: '1rem', position: 'relative', overflow: 'hidden' }}>
@@ -30,9 +31,26 @@ const DashboardPage = () => {
   const { user, profile } = useAuth();
   const [rawData, setRawData] = useState({ branches: [], entries: [], pendingJobs: 0 });
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [filter, setFilter] = useState('week'); // Default to week
+  const [filter, setFilter] = useState('month'); // Default to month
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+
+  const getSmartDate = useCallback((offset = 0) => {
+    const now = new Date();
+    // If it's before 6 PM and we want "today", we might actually want "yesterday"
+    // but the user specifically asked for a "Yesterday" button.
+    // Let's implement Yesterday logic first.
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  useEffect(() => {
+    // On mount, set default filter based on 7 PM shop close logic
+    const hour = new Date().getHours();
+    const initialFilter = hour < 19 ? 'yesterday' : 'today';
+    setFilter(initialFilter);
+  }, []);
 
   // Fetch all data once, then filter client-side
   useEffect(() => {
@@ -46,21 +64,21 @@ const DashboardPage = () => {
         }
         const { data: branches } = await branchesQuery;
 
-        // Fetch last year of data (covers all filters)
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        // Fetch last 18 months of data to support navigation
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 18);
         const bIds = branches?.map(b => b.id) || [];
         const { data: entries } = await supabase
           .from('daily_entries').select('*, branches(name)')
           .in('branch_id', bIds)
-          .gte('entry_date', oneYearAgo.toISOString().split('T')[0])
+          .gte('entry_date', startDate.toISOString().split('T')[0])
           .order('entry_date', { ascending: true });
 
         // Fetch Pending Service Jobs
         const { count: pendingJobs } = await supabase
           .from('service_jobs')
           .select('*', { count: 'exact', head: true })
-          .in('status', ['pending', 'in-progress']);
+          .in('status', ['pending', 'in-progress', 'ready']);
 
         setRawData({ branches: branches || [], entries: entries || [], pendingJobs: pendingJobs || 0 });
       } catch (err) { console.error(err); }
@@ -69,27 +87,85 @@ const DashboardPage = () => {
     fetchAll();
   }, []);
 
-  // Compute everything from rawData using useMemo — no re-fetch
-  const { stats, charts, pct } = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+  const [navigationOffset, setNavigationOffset] = useState(0);
+
+  // Reset navigation when switching filter modes
+  useEffect(() => {
+    setNavigationOffset(0);
+  }, [filter]);
+
+  const shiftRange = (dir) => {
+    setNavigationOffset(prev => prev + dir);
+  };
+
+  const calculatedRange = useMemo(() => {
+    let baseDate = new Date();
+    
+    // Apply navigation offset
+    if (filter === 'today' || filter === 'yesterday') {
+      baseDate.setDate(baseDate.getDate() + navigationOffset);
+    } else if (filter === 'week') {
+      baseDate.setDate(baseDate.getDate() + (navigationOffset * 7));
+    } else if (filter === 'month') {
+      baseDate.setMonth(baseDate.getMonth() + navigationOffset);
+    } else if (filter === 'year') {
+      baseDate.setFullYear(baseDate.getFullYear() + navigationOffset);
+    }
+
+    const today = baseDate.toISOString().split('T')[0];
     let startDate = today;
+    let endDate = today;
     
     if (filter === 'custom' && customStart) {
-      startDate = customStart;
+      // If custom, shift individual days
+      const d1 = new Date(customStart); d1.setDate(d1.getDate() + navigationOffset);
+      const d2 = new Date(customEnd || customStart); d2.setDate(d2.getDate() + navigationOffset);
+      return { startDate: d1.toISOString().split('T')[0], endDate: d2.toISOString().split('T')[0], baseDate };
     } else if (filter === 'week') {
-      const d = new Date(); d.setDate(d.getDate() - 7); startDate = d.toISOString().split('T')[0];
+      const d = new Date(baseDate); d.setDate(d.getDate() - 7); startDate = d.toISOString().split('T')[0];
     } else if (filter === 'month') {
-      const d = new Date(); d.setMonth(d.getMonth() - 1); startDate = d.toISOString().split('T')[0];
+      const d = new Date(baseDate); d.setDate(1); startDate = d.toISOString().split('T')[0];
+      const lastDay = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
+      endDate = lastDay.toISOString().split('T')[0];
+      const realToday = new Date().toISOString().split('T')[0];
+      if (endDate > realToday && navigationOffset === 0) endDate = realToday;
     } else if (filter === 'year') {
-      const d = new Date(); d.setFullYear(d.getFullYear() - 1); startDate = d.toISOString().split('T')[0];
+      const d = new Date(baseDate); d.setMonth(0, 1); startDate = d.toISOString().split('T')[0];
+      const lastDay = new Date(baseDate.getFullYear(), 11, 31);
+      endDate = lastDay.toISOString().split('T')[0];
+      const realToday = new Date().toISOString().split('T')[0];
+      if (endDate > realToday && navigationOffset === 0) endDate = realToday;
+    } else if (filter === 'yesterday') {
+      const d = new Date(baseDate); d.setDate(d.getDate() - 1); startDate = d.toISOString().split('T')[0];
+      endDate = startDate;
     } else if (filter === 'today') {
       startDate = today;
     }
 
-    const endDate = (filter === 'custom' && customEnd) ? customEnd : today;
+    return { startDate, endDate, baseDate };
+  }, [filter, navigationOffset, customStart, customEnd]);
+
+  // Sync custom inputs with calculated range so user sees them
+  useEffect(() => {
+    setCustomStart(calculatedRange.startDate);
+    setCustomEnd(calculatedRange.endDate);
+  }, [calculatedRange.startDate, calculatedRange.endDate]);
+
+  // When user manually picks a date, reset the arrow navigation so they start fresh from that date
+  const handleDateChange = (type, val) => {
+    setNavigationOffset(0);
+    setFilter('custom');
+    if (type === 'start') setCustomStart(val);
+    else setCustomEnd(val);
+  };
+
+  const { stats, charts, pct } = useMemo(() => {
+    const { startDate, endDate, baseDate } = calculatedRange;
     const { branches, entries } = rawData;
     
-    const todayEntries = entries.filter(e => e.entry_date === today);
+    // Today for status checks (always real today)
+    const realToday = new Date().toISOString().split('T')[0];
+    const todayEntries = entries.filter(e => e.entry_date === realToday);
     const submittedIds = new Set(todayEntries.map(e => e.branch_id));
     const submitted = branches.filter(b => submittedIds.has(b.id)).map(b => ({
       name: b.name,
@@ -115,7 +191,7 @@ const DashboardPage = () => {
 
     // Dynamic Bar Chart Binning Logic
     let barData = [];
-    if (filter === 'today' || filter === 'custom') {
+    if (filter === 'today' || filter === 'yesterday' || filter === 'custom') {
       // Comparison by branch
       barData = Object.values(branchAgg).map(b => ({
         name: b.name,
@@ -123,10 +199,10 @@ const DashboardPage = () => {
         Service: b.service
       }));
     } else if (filter === 'week') {
-      // Last 7 days
+      // Last 7 days from baseDate
       const days = [];
       for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(d.getDate() - i);
+        const d = new Date(baseDate); d.setDate(d.getDate() - i);
         days.push({ 
           date: d.toISOString().split('T')[0], 
           label: d.toLocaleDateString('en-US', { weekday: 'short' }) 
@@ -141,12 +217,12 @@ const DashboardPage = () => {
         };
       });
     } else if (filter === 'month') {
-      // Current Month Days
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      // Month Days for baseDate
+      const m = baseDate.getMonth();
+      const y = baseDate.getFullYear();
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
       for (let i = 1; i <= daysInMonth; i++) {
-        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
         const dayEntries = rangeEntries.filter(e => e.entry_date === dateStr);
         barData.push({
           name: String(i),
@@ -155,11 +231,11 @@ const DashboardPage = () => {
         });
       }
     } else if (filter === 'year') {
-      // Monthly for last year
+      // Monthly for year of baseDate
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const currentYear = new Date().getFullYear();
+      const y = baseDate.getFullYear();
       barData = months.map((m, idx) => {
-        const monthPrefix = `${currentYear}-${String(idx + 1).padStart(2, '0')}`;
+        const monthPrefix = `${y}-${String(idx + 1).padStart(2, '0')}`;
         const monthEntries = entries.filter(e => e.entry_date.startsWith(monthPrefix));
         return {
           name: m,
@@ -183,7 +259,7 @@ const DashboardPage = () => {
       charts: { mainChart: barData, serviceVsProduct: pieData, branchPerformance: ranked },
       pct
     };
-  }, [rawData, filter, customStart, customEnd]);
+  }, [rawData, filter, customStart, customEnd, navigationOffset]);
 
   if (!initialLoaded) return null;
 
@@ -194,8 +270,14 @@ const DashboardPage = () => {
       <div className="dash-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
           <h1 className="text-gradient" style={{ fontSize: '1rem', fontWeight: 700 }}>Analytics Overview</h1>
          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
-           <div className="glass" style={{ display: 'flex', padding: '3px', borderRadius: '8px', gap: '2px' }}>
-              {['today', 'week', 'month', 'year'].map(r => (
+            {/* Range Shifters */}
+            <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
+               <button onClick={() => shiftRange(-1)} className="btn-icon" style={{ padding: '6px' }}><ChevronLeft size={16} /></button>
+               <button onClick={() => shiftRange(1)} className="btn-icon" style={{ padding: '6px' }}><ChevronRight size={16} /></button>
+            </div>
+
+            <div className="glass" style={{ display: 'flex', padding: '3px', borderRadius: '8px', gap: '2px' }}>
+              {['today', 'yesterday', 'week', 'month', 'year'].map(r => (
                 <button key={r} onClick={() => setFilter(r)}
                   style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700,
                     background: filter === r ? 'rgba(0,210,255,0.15)' : 'transparent',
@@ -203,11 +285,11 @@ const DashboardPage = () => {
                   }}>{r.charAt(0).toUpperCase() + r.slice(1)}</button>
               ))}
            </div>
-           {/* Custom Date */}
+           {/* Custom Date Inputs - Always show what is active */}
            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-             <input type="date" value={customStart} onChange={e => { setCustomStart(e.target.value); setFilter('custom'); }} style={{ padding: '4px 8px', fontSize: '0.7rem', width: '120px' }} />
+             <input type="date" value={customStart} onChange={e => handleDateChange('start', e.target.value)} style={{ padding: '4px 8px', fontSize: '0.7rem', width: '120px' }} />
              <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>→</span>
-             <input type="date" value={customEnd} onChange={e => { setCustomEnd(e.target.value); setFilter('custom'); }} style={{ padding: '4px 8px', fontSize: '0.7rem', width: '120px' }} />
+             <input type="date" value={customEnd} onChange={e => handleDateChange('end', e.target.value)} style={{ padding: '4px 8px', fontSize: '0.7rem', width: '120px' }} />
            </div>
          </div>
       </div>

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { 
   Filter, 
-  FileText, Printer
+  FileText, Printer, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 const ReportsPage = () => {
@@ -16,6 +16,23 @@ const ReportsPage = () => {
     endDate: new Date().toISOString().split('T')[0],
     branchId: 'all'
   });
+
+  useEffect(() => {
+    // Initial Load Logic: Before 7 PM show yesterday's data
+    const hour = new Date().getHours();
+    const isEarly = hour < 19;
+    const end = new Date();
+    const start = new Date();
+    if (isEarly) {
+      start.setDate(end.getDate() - 1);
+      end.setDate(end.getDate() - 1);
+    }
+    setFilters(prev => ({ 
+      ...prev, 
+      startDate: start.toISOString().split('T')[0], 
+      endDate: end.toISOString().split('T')[0] 
+    }));
+  }, []);
 
   useEffect(() => { fetchData(); }, [filters]);
 
@@ -37,11 +54,35 @@ const ReportsPage = () => {
   };
 
   const handlePreset = (type) => {
+    // Shifting is only for manual navigation, presets should reset the reference if they want a clean start
+    // but here presets set absolute dates, so navigation doesn't strictly apply unless we use an offset state.
+    // In ReportsPage we use absolute dates in state.
     const end = new Date(); let start = new Date();
     if (type === 'today') { /* same day */ }
+    else if (type === 'yesterday') {
+      start.setDate(end.getDate() - 1);
+      end.setDate(end.getDate() - 1);
+    }
     else if (type === 'week') start.setDate(end.getDate() - 7);
-    else if (type === 'month') start.setMonth(end.getMonth() - 1);
-    else if (type === 'year') start.setFullYear(end.getFullYear() - 1);
+    else if (type === 'month') start.setDate(1); // Default to 1st of current month
+    else if (type === 'year') start.setMonth(0, 1); // Default to Jan 1st
+    
+    const startDate = start.toISOString().split('T')[0];
+    const endDate = end.toISOString().split('T')[0];
+    setFilters({ ...filters, startDate, endDate });
+  };
+
+  const shiftRange = (dir) => {
+    const start = new Date(filters.startDate);
+    const end = new Date(filters.endDate);
+    
+    // Determine the diff in days
+    const diffTime = Math.abs(end - start);
+    const diffDays = (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1);
+    
+    start.setDate(start.getDate() + (dir * diffDays));
+    end.setDate(end.getDate() + (dir * diffDays));
+    
     setFilters({ ...filters, startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] });
   };
 
@@ -185,12 +226,16 @@ const ReportsPage = () => {
 
       {/* Filters */}
       <div className="glass" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '4px', marginRight: '4px' }}>
+           <button onClick={() => shiftRange(-1)} className="btn-icon" style={{ padding: '6px' }}><ChevronLeft size={16} /></button>
+           <button onClick={() => shiftRange(1)} className="btn-icon" style={{ padding: '6px' }}><ChevronRight size={16} /></button>
+        </div>
         <Filter size={16} color="var(--accent-color)" />
         <input type="date" value={filters.startDate} onChange={e => setFilters({...filters, startDate: e.target.value})} style={{ padding: '6px 10px', fontSize: '0.8rem' }} />
         <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>to</span>
         <input type="date" value={filters.endDate} onChange={e => setFilters({...filters, endDate: e.target.value})} style={{ padding: '6px 10px', fontSize: '0.8rem' }} />
         <div style={{ display: 'flex', gap: '3px' }}>
-          {['today', 'week', 'month', 'year'].map(p => (
+          {['today', 'yesterday', 'week', 'month', 'year'].map(p => (
             <button key={p} onClick={() => handlePreset(p)} style={{ padding: '5px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{p}</button>
           ))}
         </div>

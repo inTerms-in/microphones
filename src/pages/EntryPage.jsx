@@ -144,12 +144,11 @@ const EntryPage = () => {
           <div className="form-group-standard">
             <label style={{ fontSize: '0.65rem' }}>Date</label>
             <div style={{ position: 'relative' }}>
-              <CalIcon size={12} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--accent-color)' }} />
               <input 
                 type="date" 
                 value={entryDate}
                 onChange={(e) => setEntryDate(e.target.value)}
-                style={{ paddingLeft: '30px !important', minWidth: '130px', padding: '6px 10px', fontSize: '0.8rem' }}
+                style={{ minWidth: '130px', padding: '6px 10px', fontSize: '0.8rem', color: 'var(--accent-color)' }}
               />
             </div>
           </div>
@@ -158,11 +157,10 @@ const EntryPage = () => {
             <div className="form-group-standard">
               <label style={{ fontSize: '0.65rem' }}>Branch</label>
               <div style={{ position: 'relative' }}>
-                <MapPin size={12} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--accent-color)' }} />
                 <select 
                   value={selectedBranch?.id} 
                   onChange={(e) => setSelectedBranch(branches.find(b => b.id === e.target.value))}
-                  style={{ paddingLeft: '30px !important', minWidth: '150px', padding: '6px 10px', fontSize: '0.8rem' }}
+                  style={{ minWidth: '150px', padding: '6px 10px', fontSize: '0.8rem' }}
                 >
                   {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>

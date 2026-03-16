@@ -32,7 +32,7 @@ const ServicePage = () => {
     estimate_cost: '',
     advance_paid: '',
     entry_date: new Date().toISOString().split('T')[0],
-    expected_delivery_date: '',
+    expected_delivery_date: new Date().toISOString().split('T')[0], // Default to same day
     delivery_date: '',
     assigned_to: user?.id || '',
     status: 'pending',
@@ -78,10 +78,14 @@ const ServicePage = () => {
     if (!branchId) return;
     const { data } = await supabase
       .from('user_branches')
-      .select('profiles(id, full_name, role)')
+      .select('profiles(id, full_name, role, email)')
       .eq('branch_id', branchId);
     if (data) {
-      const users = data.map(x => x.profiles).filter(Boolean);
+      // Filter out admin@micro.com from assigned list
+      const users = data
+        .map(x => x.profiles)
+        .filter(u => u && u.email !== 'admin@micro.com');
+      
       setBranchUsers(users);
       // If itemToEdit is null (new job), default assigned_to to current user if they are in this branch
       const currentUserExists = users.find(u => u.id === user.id);
@@ -164,7 +168,18 @@ const ServicePage = () => {
       `Thank you!`;
   };
 
-  const downloadPDF = (job) => {
+  const sendWhatsAppMessage = (job) => {
+    if (!job.customer_phone || job.customer_phone === 'N/A') {
+      alert("Invalid phone number");
+      return;
+    }
+    const msg = getJobMessage(job);
+    const cleanPhone = job.customer_phone.replace(/\D/g, '');
+    const waUrl = `https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const downloadPDF = (job, preview = false) => {
     const element = document.getElementById('job-slip');
     const opt = {
       margin: 10,
@@ -173,7 +188,14 @@ const ServicePage = () => {
       html2canvas: { scale: 2, useCORS: true, letterRendering: true },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
-    window.html2pdf().from(element).set(opt).save();
+    
+    if (preview) {
+      window.html2pdf().from(element).set(opt).toPdf().outputPdf('bloburl').then(url => {
+        window.open(url, '_blank');
+      });
+    } else {
+      window.html2pdf().from(element).set(opt).save();
+    }
   };
 
   const sharePDF = async (job) => {
@@ -237,7 +259,13 @@ const ServicePage = () => {
 
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
-      const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
+      let matchesStatus = statusFilter === 'all';
+      if (statusFilter === 'pending-delivery') {
+        matchesStatus = ['pending', 'in-progress', 'ready'].includes(job.status);
+      } else if (statusFilter !== 'all') {
+        matchesStatus = job.status === statusFilter;
+      }
+
       const matchesBranch = branchFilter === 'all' || job.branch_id === branchFilter;
       const term = searchTerm.toLowerCase();
       const matchesSearch = 
@@ -278,6 +306,7 @@ const ServicePage = () => {
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '8px 12px', fontSize: '0.85rem', borderRadius: '8px' }}>
             <option value="all">All Status</option>
+            <option value="pending-delivery">Pending on Delivery</option>
             {Object.keys(statusColors).map(s => <option key={s} value={s}>{s.replace('-', ' ').toUpperCase()}</option>)}
           </select>
 
@@ -499,7 +528,7 @@ const ServicePage = () => {
           <div style={{ background: 'white', color: 'black', width: '100%', maxWidth: '380px', borderRadius: '10px', boxShadow: '0 0 50px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
             <div className="no-print" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', padding: '15px', background: '#eee', gap: '10px' }}>
                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button onClick={() => window.print()} className="btn-primary" style={{ padding: '8px 12px', fontSize: '0.75rem' }}><Printer size={14} /> Print</button>
+                  <button onClick={() => downloadPDF(showPrintModal, true)} className="btn-primary" style={{ padding: '8px 12px', fontSize: '0.75rem' }}><Printer size={14} /> Preview</button>
                   <button onClick={() => downloadPDF(showPrintModal)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#00d2ff' }}><Download size={14} /> PDF</button>
                   <button onClick={() => sharePDF(showPrintModal)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.75rem', color: '#25D366' }}><Share2 size={14} /> WA PDF</button>
                   <button onClick={() => {

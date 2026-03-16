@@ -9,11 +9,13 @@ import {
 } from 'lucide-react';
 
 const SettingsPage = () => {
-  const { profile, companyName } = useAuth();
+  const { profile, companyName, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('team');
   const [team, setTeam] = useState([]);
   const [branches, setBranches] = useState([]);
   const [company, setCompany] = useState(null);
+  const [myProfile, setMyProfile] = useState({ fullName: '', email: '', password: '' });
+  const [updatingProfile, setUpdatingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +42,7 @@ const SettingsPage = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     await Promise.all([fetchTeam(), fetchBranches(), fetchCompany(), fetchAssignments()]);
+    if (profile) setMyProfile({ fullName: profile.full_name, email: profile.email, password: '' });
     setLoading(false);
   };
 
@@ -97,6 +100,23 @@ const SettingsPage = () => {
           const { error: branchErr } = await supabase.from('user_branches').insert(
             newUser.branches.map(bId => ({ user_id: newUserId, branch_id: bId }))
           );
+        }
+
+        // Set default permissions for Employee
+        if (newUser.role === 'employee') {
+          // Fetch existing perms for this user (they might have been created by trigger/RPC)
+          const { data: perms } = await supabase.from('page_permissions').select('*').eq('user_id', newUserId);
+          if (perms && perms.length > 0) {
+            for (const p of perms) {
+              const shouldHaveAccess = ['dashboard', 'reports', 'entryform'].includes(p.page_name.toLowerCase());
+              await supabase.from('page_permissions').update({
+                can_view: shouldHaveAccess,
+                can_insert: shouldHaveAccess,
+                can_update: shouldHaveAccess,
+                can_delete: false // Employees shouldn't delete by default
+              }).eq('id', p.id);
+            }
+          }
         }
       } else if (userData?.status !== 'reactivated') {
         throw new Error('Failed to retrieve new user ID. Please check if user already exists.');
@@ -178,7 +198,7 @@ const SettingsPage = () => {
   };
 
   const filteredTeam = team.filter(m => {
-    // Hide master system owner from the list
+    // Hide master system owner
     if (m.email === 'admin@micro.com') return false;
     
     return m.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -273,7 +293,7 @@ const SettingsPage = () => {
           {filteredTeam.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No employees found</div>
           ) : filteredTeam.map(member => (
-            <div key={member.id} className="team-grid team-data-row">
+            <div key={member.id} className="team-grid team-data-row" style={{ opacity: member.is_active ? 1 : 0.6, transition: 'opacity 0.2s' }}>
               {/* Name + Email */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
                 <div style={{ width: '28px', height: '28px', minWidth: '28px', borderRadius: '50%', background: 'var(--accent-gradient)', color: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.7rem' }}>
@@ -303,8 +323,9 @@ const SettingsPage = () => {
               </div>
 
               {/* Active Toggle */}
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                 <Toggle active={member.is_active} onClick={() => toggleUserStatus(member.id, 'is_active', !member.is_active)} />
+                {!member.is_active && <span style={{ fontSize: '0.5rem', fontWeight: 700, color: 'var(--error)' }}>INACTIVE</span>}
               </div>
 
               {/* Login Toggle */}
@@ -320,26 +341,23 @@ const SettingsPage = () => {
                 }} title="Edit Personal Details" style={{ padding: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', color: 'var(--accent-color)' }}><Edit2 size={13} /></button>
                 <button onClick={() => openPermissionEditor(member)} title="Permissions" style={{ padding: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', color: 'var(--accent-color)' }}><Shield size={13} /></button>
                 <button onClick={async () => { 
-                  if (member.email === 'admin@micro.com') {
-                    alert('System owner cannot be deleted.');
-                    return;
-                  }
-                  if (member.id === profile?.id) {
-                    alert('You cannot delete your own account while logged in.');
-                    return;
-                  }
-                  if(confirm(`DEACTIVATE user ${member.full_name}? Their login will be disabled, but their profile and historical data will remain for records. You can reactivate them later.`)) { 
+                  if(confirm(`PERMANENTLY DELETE user ${member.full_name}? This will remove their profile and assignments. Note: If they have historical sales data, deletion might fail due to records. In that case, use Deactivate instead.`)) { 
                     try {
-                      const { error } = await supabase.from('profiles').update({ 
-                        is_active: false, 
-                        can_login: false 
-                      }).eq('id', member.id);
-                      if (error) throw error;
+                      // Attempt hard delete of dependencies first
+                      await supabase.from('user_branches').delete().eq('user_id', member.id);
+                      await supabase.from('page_permissions').delete().eq('user_id', member.id);
                       
+                      const { error } = await supabase.from('profiles').delete().eq('id', member.id);
+                      if (error) {
+                        if (error.message.includes('foreign key')) {
+                           alert('Cannot delete: User has historical sales/service data. I will Deactivate them instead to disable access while preserving their records.');
+                           await supabase.from('profiles').update({ is_active: false, can_login: false }).eq('id', member.id);
+                        } else throw error;
+                      }
                       fetchTeam(); 
                     } catch (err) {
-                      console.error('Deactivation error:', err);
-                      alert('Could not deactivate user.');
+                      console.error('Deletion error:', err);
+                      alert('Error: ' + err.message);
                     }
                   } 
                 }} style={{ padding: '5px', background: 'rgba(255,61,0,0.1)', borderRadius: '4px', color: 'var(--error)' }}><Trash2 size={13} /></button>
@@ -449,7 +467,7 @@ const SettingsPage = () => {
       </header>
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem' }}>
-        {['team', 'branches', 'company'].map(tab => (
+        {['team', 'branches', 'company', 'profile'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{
               padding: '6px 16px', borderRadius: '6px',
@@ -464,6 +482,7 @@ const SettingsPage = () => {
         {activeTab === 'team' && renderTeam()}
         {activeTab === 'branches' && renderBranches()}
         {activeTab === 'company' && <CompanySettings company={company} setCompany={setCompany} />}
+        {activeTab === 'profile' && <UserProfileSettings data={myProfile} setData={setMyProfile} updating={updatingProfile} setUpdating={setUpdatingProfile} />}
       </div>
 
       {editingUser && <PermissionMatrix user={editingUser} perms={userPerms} onToggle={async (pId, f, v) => {
@@ -686,5 +705,56 @@ const PermissionMatrix = ({ user, perms, onToggle, onClose }) => (
     </div>
   </div>
 );
+
+const UserProfileSettings = ({ data, setData, updating, setUpdating }) => {
+  const { logout } = useAuth();
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setUpdating(true);
+    try {
+      // 1. Update Profile (Name)
+      const { error: profileErr } = await supabase.from('profiles').update({ full_name: data.fullName }).eq('id', (await supabase.auth.getUser()).data.user.id);
+      if (profileErr) throw profileErr;
+
+      // 2. Update Password if provided
+      if (data.password) {
+        const { error: authErr } = await supabase.auth.updateUser({ password: data.password });
+        if (authErr) throw authErr;
+        alert('Password updated successfully. For security, please log in again.');
+        logout();
+      } else {
+        alert('Profile updated!');
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  return (
+    <div className="animate-fade-in glass" style={{ maxWidth: '450px' }}>
+      <h2 style={{ fontSize: '1rem', marginBottom: '1.25rem' }}>My Profile Settings</h2>
+      <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="form-group-standard">
+          <label>Full Name</label>
+          <input value={data.fullName} onChange={e => setData({...data, fullName: e.target.value})} required />
+        </div>
+        <div className="form-group-standard">
+          <label>Email (Cannot Change)</label>
+          <input value={data.email} disabled style={{ opacity: 0.6 }} />
+        </div>
+        <div className="form-group-standard">
+          <label>Change Password</label>
+          <input type="password" placeholder="Enter new password" value={data.password} onChange={e => setData({...data, password: e.target.value})} />
+          <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '4px' }}>Leave blank to keep current password.</p>
+        </div>
+        <button type="submit" className="btn-primary" disabled={updating}>
+          {updating ? 'Updating...' : 'Save Profile Changes'}
+        </button>
+      </form>
+    </div>
+  );
+};
 
 export default SettingsPage;

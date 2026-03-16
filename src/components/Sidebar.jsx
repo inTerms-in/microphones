@@ -134,7 +134,7 @@ const Sidebar = () => {
         </button>
       </div>
       <div style={{ padding: '0.75rem', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.02)' }}>
-        <span style={{ fontSize: '0.65rem', fontWeight: 800, letterSpacing: '1px', color: 'var(--text-secondary)', opacity: 0.4 }}>inTerms</span>
+        <span style={{ fontSize: '0.65rem', fontWeight: 800, letterSpacing: '1px', color: 'var(--text-secondary)', opacity: 0.1 }}>v1.0.4</span>
       </div>
     </aside>
   );
